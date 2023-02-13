@@ -32,7 +32,7 @@ int main (void) {
     };
 
 #ifdef FW_DEBUG
-    config.allocateDeveloperConsole = true;
+    config.allocateDeveloperConsole = false;
     config.developerConsoleTitle    = L"hogwartsmp: dev-console";
 #endif
 
