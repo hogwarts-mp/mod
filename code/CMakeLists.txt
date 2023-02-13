@@ -4,3 +4,5 @@ if(CMAKE_CL_64)
     add_subdirectory(client)
     add_subdirectory(launcher)
 endif()
+
+add_subdirectory(server)
