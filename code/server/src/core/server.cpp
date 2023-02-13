@@ -17,7 +17,7 @@ namespace HogwartsMP {
         SetOnPlayerConnectCallback([this, net](flecs::entity player, uint64_t guid) {
             // TODO: implement
         });
-
+             
         SetOnPlayerDisconnectCallback([this](flecs::entity player, uint64_t) {
             // TODO: implement
         });

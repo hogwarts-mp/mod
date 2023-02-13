@@ -2,12 +2,12 @@
 
 #include <launcher/project.h>
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+int main (void) {
     Framework::Launcher::ProjectConfiguration config;
     config.destinationDllName = L"HogwartsMPClient.dll";
     config.executableName     = L"HogwartsLegacy.exe";
     config.name               = "HogwartsMP";
-    config.launchType            = Framework::Launcher::ProjectLaunchType::DLL_INJECTION;
+    config.launchType            = Framework::Launcher::ProjectLaunchType::PE_LOADING;
     config.platform           = Framework::Launcher::ProjectPlatform::STEAM;
     config.steamAppId         = 990080;
     config.alternativeWorkDir    = L"Phoenix/Binaries/Win64";
@@ -29,7 +29,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         L"Phoenix\\Binaries\\Win64",
         L"Phoenix\\Plugins\\ChromaSDKPlugin\\Binaries\\Win64",
         L"Phoenix\\Plugins\\Wwise\\ThirdParty\\x64_vc160\\Release\\bin",
-        L"Phoenix\Plugins\Wwise\ThirdParty\x64_vc160\Release\bin",
     };
 
 #ifdef FW_DEBUG
