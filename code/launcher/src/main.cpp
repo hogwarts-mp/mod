@@ -9,11 +9,12 @@ int main (void) {
     config.name               = "HogwartsMP";
     config.launchType            = Framework::Launcher::ProjectLaunchType::DLL_INJECTION;
     config.platform           = Framework::Launcher::ProjectPlatform::STEAM;
+    config.preferSteam                     = true;
     config.steamAppId         = 990080;
     config.alternativeWorkDir    = L"Phoenix/Binaries/Win64";
     config.additionalDLLInjectionArguments = L" -SaveToUserDir -UserDir=\"Hogwarts Legacy\"";
     config.useAlternativeWorkDir = true;
-    config.additionalSearchPaths = {
+    config.additionalSearchPaths      = {
         L"Engine\\Binaries\\ThirdParty\\DbgHelp",
         L"Engine\\Binaries\\ThirdParty\\NVIDIA\\GeForceNOW\\Win64",
         L"Engine\\Binaries\\ThirdParty\\NVIDIA\\NVaftermath\\Win64\\GFSDK_Aftermath_Lib",
@@ -33,7 +34,7 @@ int main (void) {
     };
 
 #ifdef FW_DEBUG
-    config.allocateDeveloperConsole = false;
+    config.allocateDeveloperConsole = true;
     config.developerConsoleTitle    = L"hogwartsmp: dev-console";
 #endif
 
