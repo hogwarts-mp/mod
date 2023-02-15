@@ -21,19 +21,49 @@
     MH_EnableHook(MH_ALL_HOOKS);
 }*/
 
+typedef char *(__fastcall *GetNarrowWinMainCommandLine_t)();
+GetNarrowWinMainCommandLine_t GetNarrowWinMainCommandLine_original = nullptr;
+char *GetNarrowWinMainCommandLine() {
+    InitFunction::RunAll();
+    MH_EnableHook(MH_ALL_HOOKS);
+
+    // Create our core module application
+    HogwartsMP::Core::gApplication.reset(new HogwartsMP::Core::Application);
+    if (HogwartsMP::Core::gApplication && !HogwartsMP::Core::gApplication->IsInitialized()) {
+        Framework::Integrations::Client::InstanceOptions opts;
+        opts.discordAppId = 763114144454672444;
+        opts.useRenderer  = false;
+        opts.usePresence  = true;
+        opts.useImGUI     = false;
+
+        HogwartsMP::Core::gApplication->Init(opts);
+        HogwartsMP::Core::gApplication->Update();
+    }
+    return GetNarrowWinMainCommandLine_original();
+}
+
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
     switch (fdwReason) {
     case DLL_PROCESS_ATTACH: {
         AllocConsole();
         AttachConsole(GetCurrentProcessId());
         SetConsoleTitleW(L"HogwartsMP");
-
         
         MH_Initialize();
-        hook::set_base();
 
-        InitFunction::RunAll();
-        MH_EnableHook(MH_ALL_HOOKS);
+        auto base = GetModuleHandle(nullptr);
+        hook::set_base(reinterpret_cast<uintptr_t>(base));
+
+        // Initialize the main application after Denuvo actually finished unpacking / unciphering the game
+        auto handle = LoadLibrary(TEXT("api-ms-win-crt-runtime-l1-1-0.dll"));
+        if (handle) {
+            auto procAddr = GetProcAddress((HMODULE)handle, "_get_narrow_winmain_command_line");
+            if (procAddr) {
+                MH_CreateHook(procAddr, GetNarrowWinMainCommandLine, reinterpret_cast<void **>(&GetNarrowWinMainCommandLine_original));
+                MH_EnableHook(procAddr);
+            }
+        }
+        
     } break;
     }
 

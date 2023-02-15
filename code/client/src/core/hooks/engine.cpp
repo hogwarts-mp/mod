@@ -3,34 +3,22 @@
 #include <MinHook.h>
 #include <utils/hooking/hook_function.h>
 #include <utils/hooking/hooking.h>
-
+#include <logging/logger.h>
 #include "../application.h"
 
-typedef char *(__fastcall *GetNarrowWinMainCommandLine_t)();
-GetNarrowWinMainCommandLine_t GetNarrowWinMainCommandLine_original = nullptr;
-char *GetNarrowWinMainCommandLine() {
-    // Create our core module application
-    HogwartsMP::Core::gApplication.reset(new HogwartsMP::Core::Application);
-    if (HogwartsMP::Core::gApplication && !HogwartsMP::Core::gApplication->IsInitialized()) {
-        Framework::Integrations::Client::InstanceOptions opts;
-        opts.discordAppId = 763114144454672444;
-        opts.useRenderer  = false;
-        opts.usePresence  = true;
-        opts.useImGUI     = false;
+typedef void(__fastcall *EngineTick__Hook_t)(void);
+EngineTick__Hook_t EngineTick__Hook_original = nullptr;
 
-        HogwartsMP::Core::gApplication->Init(opts);
-        HogwartsMP::Core::gApplication->PostUpdate();
+void EngineTick__Hook() {
+    EngineTick__Hook_original();
+    Framework::Logging::GetLogger("test")->info("hey i'm the ticker");
+    if (HogwartsMP::Core::gApplication && HogwartsMP::Core::gApplication->IsInitialized()) {
+        HogwartsMP::Core::gApplication->Update();
     }
-    return GetNarrowWinMainCommandLine_original();
 }
 
 static InitFunction init([]() {
-    // Initialize the main application after Denuvo actually finished unpacking / unciphering the game
-    auto handle = LoadLibrary(TEXT("api-ms-win-crt-runtime-l1-1-0.dll"));
-    if (handle) {
-        auto procAddr = GetProcAddress((HMODULE)handle, "_get_narrow_winmain_command_line");
-        if (procAddr) {
-            MH_CreateHook(procAddr, GetNarrowWinMainCommandLine, reinterpret_cast<void **>(&GetNarrowWinMainCommandLine_original));
-        }
-    }
+    // Initialize our tick method
+    const auto EngineTick__Addr = hook::get_opcode_address("E8 ? ? ? ? 80 3D ? ? ? ? ? 74 EB");
+    MH_CreateHook((LPVOID)EngineTick__Addr, (PBYTE)EngineTick__Hook, reinterpret_cast<void **>(&EngineTick__Hook_original));
 });
