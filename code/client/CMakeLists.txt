@@ -1,5 +1,9 @@
 set(HOGWARTSMP_CLIENT_FILES
     src/main.cpp
+    src/core/hooks/engine.cpp
+    src/core/hooks/gamemode.cpp
+    src/core/hooks/player_controller.cpp
+    src/core/application.cpp
 )
 
 add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES})

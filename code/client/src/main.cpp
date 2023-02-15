@@ -27,12 +27,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
     case DLL_PROCESS_ATTACH: {
         Framework::Logging::GetInstance()->SetLogName("HogwartsMP");
 
-        // MH_Initialize();
+        MH_Initialize();
         hook::set_base();
 
-        // std::invalid_argument("coucou");
-
-        // Entry point is handled by an InitFunction, so we just have to enable hooks and trigger the shits down here
         InitFunction::RunAll();
         MH_EnableHook(MH_ALL_HOOKS);
     } break;
