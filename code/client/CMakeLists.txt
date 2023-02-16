@@ -3,6 +3,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/hooks/engine.cpp
     src/core/hooks/gamemode.cpp
     src/core/hooks/player_controller.cpp
+    src/core/hooks/render_device.cpp
     src/core/modules/human.cpp
     src/core/application.cpp
     ${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp
