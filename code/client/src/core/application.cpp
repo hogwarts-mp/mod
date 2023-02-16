@@ -16,6 +16,7 @@
 
 
 namespace HogwartsMP::Core {
+    Globals gGlobals;
     std::unique_ptr<Application> gApplication = nullptr;
 
     bool Application::PostInit() {

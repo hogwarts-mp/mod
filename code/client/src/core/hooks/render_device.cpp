@@ -22,8 +22,9 @@ void FWindowsApplication__ProcessMessage_Hook(void* pThis, HWND hwnd, uint32_t m
 void FWindowsWindow__Initialize_Hook(void *pThis, void *app, float **definitions, HINSTANCE inst, void *parent, bool showNow) {
     FWindowsWindow__Initialize_original(pThis, app, definitions, inst, parent, showNow);
 
-    // Patch the window name
+    // Acquire the windows and patch the title
     const HWND hWnd = *(HWND*)((DWORD*)pThis+0x28);
+    HogwartsMP::Core::gGlobals.window = hWnd;
     SetWindowTextA(hWnd, "Hogwarts: Advanced Multiplayer Edition");
 
     Framework::Logging::GetLogger("Hooks")->info("Main Window created at {} (show now {})", fmt::ptr(hWnd), showNow ? "yes" : "no");
