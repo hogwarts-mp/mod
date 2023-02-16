@@ -26,7 +26,7 @@ void FWindowsWindow__Initialize_Hook(void *pThis, void *app, float **definitions
     const HWND hWnd = *(HWND*)((DWORD*)pThis+0x28);
     SetWindowTextA(hWnd, "Hogwarts: Advanced Multiplayer Edition");
 
-    Framework::Logging::GetLogger("Hooks")->info("Main Window created at {}", fmt::ptr(hWnd));
+    Framework::Logging::GetLogger("Hooks")->info("Main Window created at {} (show now {})", fmt::ptr(hWnd), showNow ? "yes" : "no");
 }
 
 static InitFunction init([]() {
