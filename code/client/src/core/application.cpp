@@ -72,6 +72,13 @@ namespace HogwartsMP::Core {
             discordApi->SetPresence("Broomstick", "Flying around", discord::ActivityType::Playing);
         }
 
+        // todo move to state later
+        gApplication->GetImGUI()->PushWidget([]() {
+            if (!gApplication->GetDevConsole()->IsOpen()){
+                gApplication->GetChat()->Update();
+            }
+        });
+
         #if 1
         Core::gApplication->GetImGUI()->PushWidget([&]() {
             using namespace Framework::External::ImGUI::Widgets;
@@ -155,5 +162,22 @@ namespace HogwartsMP::Core {
                 case Shared::Modules::Mod::MOD_PLAYER: Core::Modules::Human::UpdateTransform(e); break;
             }
         });
+    }
+
+    void Application::LockControls(bool lock) {
+        if (lock) {
+            // Lock game controls
+            // Game::Helpers::Controls::Lock(true);
+
+            // Enable cursor
+            GetImGUI()->ShowCursor(true);
+        }
+        else {
+            // Unlock game controls
+            // Game::Helpers::Controls::Lock(false);
+
+            // Disable cursor
+            GetImGUI()->ShowCursor(false);
+        }
     }
 }

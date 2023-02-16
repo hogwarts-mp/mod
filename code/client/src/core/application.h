@@ -53,6 +53,8 @@ namespace HogwartsMP::Core {
             return _chat;
         }
 
+        void LockControls(bool lock);
+
         uint64_t GetLocalPlayerID();
     };
 

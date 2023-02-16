@@ -26,7 +26,7 @@ namespace HogwartsMP::Core::UI {
 
         if (gApplication->GetInput()->IsKeyPressed(FW_KEY_RETURN) && !_isFocused) {
             _isFocused = true;
-            // gApplication->LockControls(true);
+            gApplication->LockControls(true);
             if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
                 ImGui::SetScrollHereY(1.0f);
         }
@@ -43,7 +43,7 @@ namespace HogwartsMP::Core::UI {
                     strcpy(_inputText, "");
                 }
 
-                // gApplication->LockControls(false);
+                gApplication->LockControls(false);
                 if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
                     ImGui::SetScrollHereY(1.0f);
             }

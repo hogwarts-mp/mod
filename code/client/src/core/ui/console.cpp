@@ -16,6 +16,6 @@ namespace HogwartsMP::Core::UI {
     HogwartsConsole::HogwartsConsole(std::shared_ptr<Framework::Utils::CommandProcessor> commandProcessor, std::shared_ptr<Framework::Input::IInput> input): Framework::External::ImGUI::Widgets::Console(commandProcessor, input) {}
 
     void HogwartsConsole::LockControls(bool lock) {
-        // gApplication->LockControls(lock);
+        gApplication->LockControls(lock);
     }
 } // namespace HogwartsMP::Core::UI
