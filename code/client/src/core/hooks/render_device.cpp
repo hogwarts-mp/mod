@@ -31,6 +31,14 @@ typedef void(__fastcall *FD3D12Adapter__CreateRootdevice_t)(FD3D12Adapter *, boo
 FD3D12Adapter__CreateRootdevice_t FD3D12Adapter__CreateRootdevice_original = nullptr;
 
 void FWindowsApplication__ProcessMessage_Hook(void* pThis, HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM lParam) {
+    const auto app = HogwartsMP::Core::gApplication.get();
+    if (app && app->IsInitialized()) {
+        app->GetInput()->ProcessEvent(hwnd, msg, wParam, lParam);
+
+        if (app->GetImGUI()->ProcessEvent(hwnd, msg, wParam, lParam) == Framework::External::ImGUI::InputState::BLOCK) {
+            return;
+        }
+    }
     FWindowsApplication__ProcessMessage_original(pThis, hwnd, msg, wParam, lParam);
 }
 
