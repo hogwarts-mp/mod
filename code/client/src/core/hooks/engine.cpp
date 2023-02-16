@@ -4,6 +4,7 @@
 #include <utils/hooking/hook_function.h>
 #include <utils/hooking/hooking.h>
 #include <logging/logger.h>
+
 #include "../application.h"
 
 typedef void(__fastcall *EngineTick__Hook_t)(void);
@@ -11,7 +12,6 @@ EngineTick__Hook_t EngineTick__Hook_original = nullptr;
 
 void EngineTick__Hook() {
     EngineTick__Hook_original();
-    Framework::Logging::GetLogger("test")->info("hey i'm the ticker");
     if (HogwartsMP::Core::gApplication && HogwartsMP::Core::gApplication->IsInitialized()) {
         HogwartsMP::Core::gApplication->Update();
     }
