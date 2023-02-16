@@ -14,12 +14,32 @@
 
 #include "modules/human.h"
 
+#include "external/imgui/widgets/corner_text.h"
+
+#include "shared/version.h"
+
 
 namespace HogwartsMP::Core {
     Globals gGlobals;
     std::unique_ptr<Application> gApplication = nullptr;
 
     bool Application::PostInit() {
+        _commandProcessor = std::make_shared<Framework::Utils::CommandProcessor>();
+        _input            = std::make_shared<HogwartsMP::Game::GameInput>();
+        _console          = std::make_shared<UI::HogwartsConsole>(_commandProcessor, _input);
+        _chat             = std::make_shared<UI::Chat>();
+
+        _chat->SetOnMessageSentCallback([this](const std::string &msg) {
+            const auto net = gApplication->GetNetworkingEngine()->GetNetworkClient();
+
+            HogwartsMP::Shared::RPC::ChatMessage chatMessage {};
+            chatMessage.FromParameters(msg);
+            net->SendRPC(chatMessage, SLNet::UNASSIGNED_RAKNET_GUID);
+        });
+
+        // setup debug routines
+        _devFeatures.Init();
+
         // Register client modules (sync)
         GetWorldEngine()->GetWorld()->import <Shared::Modules::Mod>();
         GetWorldEngine()->GetWorld()->import <Shared::Modules::HumanSync>();
@@ -50,6 +70,37 @@ namespace HogwartsMP::Core {
         const auto discordApi = Core::gApplication->GetPresence();
         if (discordApi && discordApi->IsInitialized()) {
             discordApi->SetPresence("Broomstick", "Flying around", discord::ActivityType::Playing);
+        }
+
+        #if 1
+        Core::gApplication->GetImGUI()->PushWidget([&]() {
+            using namespace Framework::External::ImGUI::Widgets;
+            const auto networkClient = Core::gApplication->GetNetworkingEngine()->GetNetworkClient();
+            const auto connState     = networkClient->GetConnectionState();
+            const auto ping          = networkClient->GetPing();
+
+            _console->Update();
+            _devFeatures.Update();
+
+            if (_input->IsKeyPressed(FW_KEY_F8)) {
+                _console->Toggle();
+            }
+
+            const char *connStateNames[] = {"Connecting", "Online", "Offline"};
+
+            // versioning
+            DrawCornerText(CORNER_RIGHT_BOTTOM, "Hogwarts Legacy Multiplayer");
+            DrawCornerText(CORNER_RIGHT_BOTTOM, fmt::format("Framework version: {} ({})", Framework::Utils::Version::rel, Framework::Utils::Version::git));
+            DrawCornerText(CORNER_RIGHT_BOTTOM, fmt::format("HogwartsMP version: {} ({})", HogwartsMP::Version::rel, HogwartsMP::Version::git));
+
+            // connection details
+            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Connection: {}", connStateNames[connState]));
+            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Ping: {}", ping));
+        });
+#endif
+
+        if (_input) {
+            _input->Update();
         }
     }
 

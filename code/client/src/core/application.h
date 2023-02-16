@@ -26,6 +26,7 @@ namespace HogwartsMP::Core {
         std::shared_ptr<UI::HogwartsConsole> _console;
         std::shared_ptr<UI::Chat> _chat;
         std::shared_ptr<Framework::Utils::CommandProcessor> _commandProcessor;
+        DevFeatures _devFeatures;
 
       public:
         bool PostInit() override;
