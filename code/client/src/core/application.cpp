@@ -35,6 +35,8 @@ namespace HogwartsMP::Core {
             return true;
         });
 
+        InitNetworkingMessages();
+
         return true;
     }
 
