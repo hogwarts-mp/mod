@@ -145,7 +145,7 @@ namespace HogwartsMP::Core {
         net->RegisterRPC<Shared::RPC::ChatMessage>([this](SLNet::RakNetGUID guid, Shared::RPC::ChatMessage *chatMessage) {
             if (!chatMessage->Valid())
                 return;
-            // _chat->AddMessage(chatMessage->GetText());
+            _chat->AddMessage(chatMessage->GetText());
 
             Framework::Logging::GetLogger("chat")->trace(chatMessage->GetText());
         });
