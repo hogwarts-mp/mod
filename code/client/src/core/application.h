@@ -6,19 +6,51 @@
 
 #include <integrations/client/instance.h>
 #include <graphics/backend/d3d12.h>
+#include "dev_features.h"
+
+#include "ui/chat.h"
+#include "ui/console.h"
+
+#include "game/game_input.h"
 
 namespace HogwartsMP::Core {
     class Application : public Framework::Integrations::Client::Instance {
       private:
+        friend class DevFeatures;
         void InitNetworkingMessages();
         void InitRPCs();
         flecs::entity _localPlayer;
         float _tickInterval = 0.01667f;
 
+        std::shared_ptr<HogwartsMP::Game::GameInput> _input;
+        std::shared_ptr<UI::HogwartsConsole> _console;
+        std::shared_ptr<UI::Chat> _chat;
+        std::shared_ptr<Framework::Utils::CommandProcessor> _commandProcessor;
+
       public:
         bool PostInit() override;
         bool PreShutdown() override;
         void PostUpdate() override;
+
+        float GetTickInterval() const {
+            return _tickInterval;
+        }
+
+        std::shared_ptr<Framework::Utils::CommandProcessor> GetCommandProcessor() const {
+            return _commandProcessor;
+        }
+
+        std::shared_ptr<HogwartsMP::Game::GameInput> GetInput() const {
+            return _input;
+        }
+
+        std::shared_ptr<UI::HogwartsConsole> GetDevConsole() const {
+            return _console;
+        }
+
+        std::shared_ptr<UI::Chat> GetChat() const {
+            return _chat;
+        }
 
         uint64_t GetLocalPlayerID();
     };

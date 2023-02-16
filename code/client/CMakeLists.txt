@@ -6,6 +6,12 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/hooks/render_device.cpp
     src/core/modules/human.cpp
     src/core/application.cpp
+    src/core/dev_features.cpp
+
+    src/core/ui/chat.cpp
+    src/core/ui/console.cpp
+
+    src/game/game_input.cpp
     ${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp
 )
 
