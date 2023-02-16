@@ -32,9 +32,12 @@ char *GetNarrowWinMainCommandLine() {
     if (HogwartsMP::Core::gApplication && !HogwartsMP::Core::gApplication->IsInitialized()) {
         Framework::Integrations::Client::InstanceOptions opts;
         opts.discordAppId = 1075742680321114212;
-        opts.useRenderer  = false;
+        opts.useRenderer  = true;
+        opts.initRendererManually  = true;
         opts.usePresence  = true;
-        opts.useImGUI     = false;
+        opts.useImGUI     = true;
+        opts.rendererOptions.backend = Framework::Graphics::RendererBackend::BACKEND_D3D_12;
+        opts.rendererOptions.platform = Framework::Graphics::PlatformBackend::PLATFORM_WIN32;
 
         HogwartsMP::Core::gApplication->Init(opts);
         HogwartsMP::Core::gApplication->Update();

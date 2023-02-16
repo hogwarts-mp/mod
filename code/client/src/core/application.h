@@ -61,7 +61,6 @@ namespace HogwartsMP::Core {
     struct Globals {
         Application *application                                                  = nullptr;
         HWND window                                                          = nullptr;
-        IDXGISwapChain *swapChain                                            = nullptr;
         ID3D12Device *device                                                      = nullptr;
     };
 

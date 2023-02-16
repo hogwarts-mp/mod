@@ -47,13 +47,24 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
 
     // Acquire the windows and patch the title
     HogwartsMP::Core::gGlobals.window = pThis->m_pMainWindow;
+
+    // prepare the data
+    auto opts = HogwartsMP::Core::gApplication->GetOptions();
+    opts->rendererOptions.d3d12.device = HogwartsMP::Core::gGlobals.device;
+    opts->rendererOptions.windowHandle = HogwartsMP::Core::gGlobals.window;
+
     SetWindowTextA(pThis->m_pMainWindow, "Hogwarts: Advanced Multiplayer Edition");
+
+    if (HogwartsMP::Core::gApplication->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
+        Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Rendering subsystems failed to initialize");
+    }
 
     Framework::Logging::GetLogger("Hooks")->info("Main Window created (show now {}) = {}", showNow ? "yes" : "no", fmt::ptr(pThis->m_pMainWindow));
 }
 
 void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) {
     FD3D12Adapter__CreateRootdevice_original(pThis, withDebug);
+    HogwartsMP::Core::gGlobals.device = pThis->m_pDevice;
     Framework::Logging::GetLogger("Hooks")->info("D3D12 RootDevice created (with debug {}) = {}", withDebug ? "yes" : "no", fmt::ptr(pThis->m_pDevice));
 }
 
