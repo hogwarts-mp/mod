@@ -1,0 +1,10 @@
+#define HOGWARTSMP_GIT_VERSION_LONG "@HOGWARTSMP_GIT_VERSION_LONG@"
+#define HOGWARTSMP_GIT_VERSION "@HOGWARTSMP_GIT_VERSION@"
+#define HOGWARTSMP_VERSION      "@HOGWARTSMP_VERSION@"
+
+
+namespace HogwartsMP::Version {
+    const char *git = HOGWARTSMP_GIT_VERSION;
+    const char *gitLong = HOGWARTSMP_GIT_VERSION_LONG;
+    const char *rel = HOGWARTSMP_VERSION;
+};

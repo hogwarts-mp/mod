@@ -1,3 +1,7 @@
+include(UpdateGitHash)
+
+update_git_version(HOGWARTSMP "${CMAKE_CURRENT_SOURCE_DIR}/shared/version.cpp.in" "${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp")
+
 include_directories(${CMAKE_SOURCE_DIR}/code/framework ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(CMAKE_CL_64)

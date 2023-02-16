@@ -1,10 +1,23 @@
 #include "server.h"
 
-namespace HogwartsMP {
+#include "shared/modules/human_sync.hpp"
 
+#include "modules/human.h"
+
+#include "shared/rpc/chat_message.h"
+
+#include <fmt/format.h>
+
+namespace HogwartsMP {
     void Server::PostInit() {
         _serverRef = this;
         InitNetworkingMessages();
+
+        // Setup ECS modules (sync)
+        GetWorldEngine()->GetWorld()->import<Shared::Modules::HumanSync>();
+
+        // Setup ECS modules
+        GetWorldEngine()->GetWorld()->import <Core::Modules::Human>();
     }
 
     void Server::PostUpdate() {}
@@ -15,14 +28,29 @@ namespace HogwartsMP {
         const auto net = GetNetworkingEngine()->GetNetworkServer();
 
         SetOnPlayerConnectCallback([this, net](flecs::entity player, uint64_t guid) {
-            // TODO: implement
+            (void)(guid);
+            // Create the networked human entity
+            Core::Modules::Human::Create(net, player);
+
+            // Broadcast chat message
+            const auto st  = player.get<Framework::World::Modules::Base::Streamer>();
+            const auto msg = fmt::format("Player {} has joined the session!", st->nickname);
+            BroadcastChatMessage(player, msg);
+
+            // Scripting::Human::EventPlayerConnected(v8::Isolate::GetCurrent(), player);
         });
-             
+
         SetOnPlayerDisconnectCallback([this](flecs::entity player, uint64_t) {
-            // TODO: implement
+            const auto st  = player.get<Framework::World::Modules::Base::Streamer>();
+            const auto msg = fmt::format("Player {} has left the session!", st->nickname);
+            BroadcastChatMessage(player, msg);
+
+            // Scripting::Human::EventPlayerDisconnected(v8::Isolate::GetCurrent(), player);
         });
 
         InitRPCs();
+
+        Core::Modules::Human::SetupMessages(this->GetWorldEngine(), net);
 
         // TODO: Register custom networking messages
 
@@ -38,6 +66,8 @@ namespace HogwartsMP {
     }
 
     void Server::BroadcastChatMessage(flecs::entity ent, const std::string &msg) {
+        FW_SEND_COMPONENT_RPC(Shared::RPC::ChatMessage, msg);
+        Framework::Logging::GetLogger("chat")->info(fmt::format("[{}] {}", ent.id(), msg));
     }
     void Server::InitRPCs() {
     }
