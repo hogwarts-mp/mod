@@ -54,6 +54,7 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
 
 void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) {
     FD3D12Adapter__CreateRootdevice_original(pThis, withDebug);
+    HogwartsMP::Core::gGlobals.device = pThis->m_pDevice;
     Framework::Logging::GetLogger("Hooks")->info("D3D12 RootDevice created (with debug {}) = {}", withDebug ? "yes" : "no", fmt::ptr(pThis->m_pDevice));
 }
 
