@@ -12,7 +12,7 @@ int main (void) {
     config.preferSteam                     = true;
     config.steamAppId         = 990080;
     config.alternativeWorkDir    = L"Phoenix/Binaries/Win64";
-    config.additionalDLLInjectionArguments = L" -SaveToUserDir -UserDir=\"Hogwarts Legacy\"";
+    config.additionalLaunchArguments = L" dx12 d3d12 -SaveToUserDir -UserDir=\"Hogwarts Legacy\"";
     config.useAlternativeWorkDir = true;
     config.additionalSearchPaths      = {
         L"Engine\\Binaries\\ThirdParty\\DbgHelp",
