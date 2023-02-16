@@ -30,6 +30,9 @@ FWindowsApplication__ProcessMessage_t FWindowsApplication__ProcessMessage_origin
 typedef void(__fastcall *FD3D12Adapter__CreateRootdevice_t)(FD3D12Adapter *, bool);
 FD3D12Adapter__CreateRootdevice_t FD3D12Adapter__CreateRootdevice_original = nullptr;
 
+typedef void(__fastcall *FEngineLoop__Tick_t)(void *);
+FEngineLoop__Tick_t FEngineLoop__Tick_original = nullptr;
+
 void FWindowsApplication__ProcessMessage_Hook(void* pThis, HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM lParam) {
     const auto app = HogwartsMP::Core::gApplication.get();
     if (app && app->IsInitialized()) {
@@ -58,8 +61,12 @@ void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) 
     Framework::Logging::GetLogger("Hooks")->info("D3D12 RootDevice created (with debug {}) = {}", withDebug ? "yes" : "no", fmt::ptr(pThis->m_pDevice));
 }
 
+void FEngineLoop__Tick_Hook(void* pThis) {
+    FEngineLoop__Tick_original(pThis);
+}
+
 static InitFunction init([]() {
-    // Initialize our WindowsWindow Initialize method
+    // Initialize our FWindowsWindow Initialize method
     const auto FWindowsWindow__Initialize_Addr = hook::pattern("4C 8B DC 53 55 56 41 54 41 55 41 56").get_first();
     MH_CreateHook((LPVOID)FWindowsWindow__Initialize_Addr, (PBYTE)FWindowsWindow__Initialize_Hook, reinterpret_cast<void **>(&FWindowsWindow__Initialize_original));
 
@@ -67,6 +74,11 @@ static InitFunction init([]() {
     const auto FWindowsApplication__ProcessMessage_Addr = hook::get_opcode_address("E8 ? ? ? ? 48 8B 5C 24 ? 48 8B 6C 24 ? 48 8B 74 24 ? 48 98");
     MH_CreateHook((LPVOID)FWindowsApplication__ProcessMessage_Addr, (PBYTE)FWindowsApplication__ProcessMessage_Hook, reinterpret_cast<void **>(&FWindowsApplication__ProcessMessage_original));
 
+    // Initialize our CreateRootDevice method
     const auto FD3D12Adapter__CreateRootDevice_Addr = hook::pattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 44 0F B6 FA").get_first();
     MH_CreateHook((LPVOID)FD3D12Adapter__CreateRootDevice_Addr, (PBYTE)FD3D12Adapter__CreateRootdevice_Hook, reinterpret_cast<void **>(&FD3D12Adapter__CreateRootdevice_original));
+
+    // Initialize our Tick method
+    const auto FEngineLoop__Tick_Addr = hook::get_opcode_address("E8 ? ? ? ? 80 3D ? ? ? ? ? 74 EB");
+    MH_CreateHook((LPVOID)FEngineLoop__Tick_Addr, (PBYTE)FEngineLoop__Tick_Hook, reinterpret_cast<void **>(&FEngineLoop__Tick_original));
 });
