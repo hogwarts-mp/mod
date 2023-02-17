@@ -1,6 +1,6 @@
+#include <utils/safe_win32.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
-#include <atlbase.h>
 
 static uint64_t* g_MethodsTable = NULL;
 
@@ -51,14 +51,14 @@ int Init() {
         return -1;
     }
 
-    CComPtr<IDXGIFactory> factory;
+    IDXGIFactory* factory;
     if (((long(__stdcall*)(const IID&, void**))(CreateDXGIFactory))(__uuidof(IDXGIFactory), (void**)&factory) < 0) {
         ::DestroyWindow(window);
         ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
         return -1;
     }
 
-    CComPtr<IDXGIAdapter> adapter;
+    IDXGIAdapter* adapter;
     if (factory->EnumAdapters(0, &adapter) == DXGI_ERROR_NOT_FOUND) {
         ::DestroyWindow(window);
         ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
@@ -72,7 +72,7 @@ int Init() {
         return -1;
     }
 
-    CComPtr<ID3D12Device> device;
+    ID3D12Device* device;
     if (((long(__stdcall*)(IUnknown*, D3D_FEATURE_LEVEL, const IID&, void**))(D3D12CreateDevice))(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), (void**)&device) < 0) {
         ::DestroyWindow(window);
         ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
@@ -85,21 +85,21 @@ int Init() {
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     queueDesc.NodeMask = 0;
 
-    CComPtr<ID3D12CommandQueue> commandQueue;
+    ID3D12CommandQueue* commandQueue;
     if (device->CreateCommandQueue(&queueDesc, __uuidof(ID3D12CommandQueue), (void**)&commandQueue) < 0) {
         ::DestroyWindow(window);
         ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
         return -1;
     }
 
-    CComPtr<ID3D12CommandAllocator> commandAllocator;
+    ID3D12CommandAllocator* commandAllocator;
     if (device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator), (void**)&commandAllocator) < 0) {
         ::DestroyWindow(window);
         ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
         return -1;
     }
 
-    CComPtr<ID3D12GraphicsCommandList> commandList;
+    ID3D12GraphicsCommandList* commandList;
     if (device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, NULL, __uuidof(ID3D12GraphicsCommandList), (void**)&commandList) < 0) {
         ::DestroyWindow(window);
         ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
@@ -132,7 +132,7 @@ int Init() {
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
-    CComPtr<IDXGISwapChain> swapChain;
+    IDXGISwapChain* swapChain;
     if (factory->CreateSwapChain(commandQueue, &swapChainDesc, &swapChain) < 0) {
         ::DestroyWindow(window);
         ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
@@ -148,6 +148,16 @@ int Init() {
 
     ::DestroyWindow(window);
     ::UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
+
+    // clean up objects
+    swapChain->Release();
+    commandList->Release();
+    commandAllocator->Release();
+    commandQueue->Release();
+    device->Release();
+    adapter->Release();
+    factory->Release();
+
     return 0;
 }
 

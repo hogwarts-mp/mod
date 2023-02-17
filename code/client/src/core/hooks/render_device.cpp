@@ -62,7 +62,7 @@ ID3D12CommandQueue__ExecuteCommandLists_t ID3D12CommandQueue__ExecuteCommandList
 long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT SyncInterval, UINT Flags) {
     auto* app = HogwartsMP::Core::gApplication.get();
     auto* renderer = app->GetRenderer();
-    
+
     if(!renderer->IsInitialized()) {
         auto opts = app->GetOptions();
         if(opts->rendererOptions.d3d12.commandQueue) {
@@ -86,7 +86,7 @@ long __fastcall IDXGISwapChain3__ResizeBuffers_Hook(IDXGISwapChain3* pSwapChain,
 }
 
 void __fastcall ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue* queue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists) {
-    
+
     auto opts = HogwartsMP::Core::gApplication->GetOptions();
     if (!opts->rendererOptions.d3d12.commandQueue && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
         opts->rendererOptions.d3d12.commandQueue = queue;
@@ -98,12 +98,12 @@ void __fastcall ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue*
 void HookDX12_Functions() {
     auto pointersRes = GrabDX12Pointers();
     if(!pointersRes.has_value()) {
-        Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Unable to grab DX12 pointers !"); 
+        Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Unable to grab DX12 pointers !");
         return;
     }
 
     auto pointers = pointersRes.value();
-    Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("DX12 pointers ExecuteCommandLists: {} Present: {} ResizeBuffers: {}", 
+    Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("DX12 pointers ExecuteCommandLists: {} Present: {} ResizeBuffers: {}",
         pointers.ID3D12CommandQueue__ExecuteCommandLists,
         pointers.IDXGISwapChain3__Present,
         pointers.IDXGISwapChain3__ResizeBuffers
@@ -129,7 +129,7 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
     opts->rendererOptions.windowHandle = HogwartsMP::Core::gGlobals.window;
 
     SetWindowTextA(pThis->m_pMainWindow, "Hogwarts: Advanced Multiplayer Edition");
-    
+
     HookDX12_Functions();
     Framework::Logging::GetLogger("Hooks")->info("Main Window created (show now {}) = {}", showNow ? "yes" : "no", fmt::ptr(pThis->m_pMainWindow));
 }
