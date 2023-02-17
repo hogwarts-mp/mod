@@ -29,7 +29,14 @@ set(HOGWARTSMP_CLIENT_FILES
     ${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp
 )
 
-add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} "src/core/ue4_impl.cpp")
+set(HOGWARTSMP_SDK_FILES
+    src/sdk/containers/fname.cpp
+    src/sdk/containers/tuobjectarray.cpp
+    src/sdk/entities/acharacter.cpp
+    src/sdk/types/uobject.cpp
+)
+
+add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} ${HOGWARTSMP_SDK_FILES} "src/core/ue4_impl.cpp")
 target_include_directories(HogwartsMPClient PRIVATE src
     ${UE4_SOURCE_DIR}/Runtime/Core/Public
     ${UE4_SOURCE_DIR}/Runtime/CoreUObject/Public
