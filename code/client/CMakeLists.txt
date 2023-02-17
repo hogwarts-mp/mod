@@ -12,7 +12,11 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/modules/human.cpp
     src/core/states/initialize.cpp
     src/core/states/menu.cpp
+    src/core/states/session_connected.cpp
+    src/core/states/session_connection.cpp
     src/core/states/shutdown.cpp
+    src/core/states/session_disconnection.cpp
+    src/core/states/session_offline_debug.cpp
     src/core/application.cpp
     src/core/dev_features.cpp
     src/core/ue4_impl.cpp

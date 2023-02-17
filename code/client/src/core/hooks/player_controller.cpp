@@ -6,8 +6,6 @@
 
 #include <logging/logger.h>
 
-#include "../application.h"
-
 enum EndPlayReason {
     /** When the Actor or Component is explicitly destroyed. */
     Destroyed,
@@ -39,12 +37,6 @@ typedef void(__fastcall *APlayerController_TickActor_t)(void *, float, int, void
 APlayerController_TickActor_t APlayerController_TickActor_original = nullptr;
 void APlayerController_TickActor_Hook(void *pThis, float deltaSeconds, int tickType, void *callbackFnc) {
     APlayerController_TickActor_original(pThis, deltaSeconds, tickType, callbackFnc);
-
-    if (!HogwartsMP::Core::gApplication || !HogwartsMP::Core::gApplication->IsInitialized()) {
-        return;
-    }
-
-    HogwartsMP::Core::gApplication->Update();
 }
 
 static InitFunction init([]() {
