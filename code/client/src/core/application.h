@@ -13,6 +13,11 @@
 
 #include "game/game_input.h"
 
+#include "UObject/Class.h"
+#include "UObject/EnumProperty.h"
+#include "UObject/UObjectArray.h"
+#include "UObject/UnrealType.h"
+
 namespace HogwartsMP::Core {
     class Application : public Framework::Integrations::Client::Instance {
       private:
@@ -62,6 +67,8 @@ namespace HogwartsMP::Core {
         Application *application                                                  = nullptr;
         HWND window                                                          = nullptr;
         ID3D12Device *device                                                      = nullptr;
+        FUObjectArray *objectArray                                                = {nullptr};
+        UWorld *world                                                             = nullptr;
     };
 
     extern Globals gGlobals;
