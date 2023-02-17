@@ -8,6 +8,7 @@
 #include <logging/logger.h>
 
 #include "../application.h"
+#include "../dx_test.h"
 
 class FD3D12Adapter {
   public:
@@ -64,12 +65,24 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
     }
 
     Framework::Logging::GetLogger("Hooks")->info("Main Window created (show now {}) = {}", showNow ? "yes" : "no", fmt::ptr(pThis->m_pMainWindow));
+    //HookDx();
 }
 
 void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) {
     FD3D12Adapter__CreateRootdevice_original(pThis, withDebug);
     HogwartsMP::Core::gGlobals.device = pThis->m_pDevice;
     Framework::Logging::GetLogger("Hooks")->info("D3D12 RootDevice created (with debug {}) = {}", withDebug ? "yes" : "no", fmt::ptr(pThis->m_pDevice));
+}
+
+typedef HRESULT(__fastcall *D3D12Viewport__PresentInternal_t)(void*, int32_t);
+D3D12Viewport__PresentInternal_t FD3D12Viewport__PresentInternal_original = nullptr;
+HRESULT __fastcall FD3D12Viewport__PresentInternal_Hook(void* _FD3D12Viewport, int32_t SwapInterval) {
+    const auto app = HogwartsMP::Core::gApplication.get();
+    if (app && app->IsInitialized()) {
+        app->GetImGUI()->Render();
+    }
+
+    return FD3D12Viewport__PresentInternal_original(_FD3D12Viewport, SwapInterval);
 }
 
 static InitFunction init([]() {
@@ -84,4 +97,8 @@ static InitFunction init([]() {
     // Initialize our CreateRootDevice method
     const auto FD3D12Adapter__CreateRootDevice_Addr = hook::pattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 44 0F B6 FA").get_first();
     MH_CreateHook((LPVOID)FD3D12Adapter__CreateRootDevice_Addr, (PBYTE)FD3D12Adapter__CreateRootdevice_Hook, reinterpret_cast<void **>(&FD3D12Adapter__CreateRootdevice_original));
+
+    // Init our present hook
+    const auto FD3D12Viewport__PresentInternal_Addr = hook::pattern("89 54 24 10 4C 8B DC 57").get_first();
+    MH_CreateHook((LPVOID)FD3D12Viewport__PresentInternal_Addr, (PBYTE)FD3D12Viewport__PresentInternal_Hook, reinterpret_cast<void **>(&FD3D12Viewport__PresentInternal_original));
 });
