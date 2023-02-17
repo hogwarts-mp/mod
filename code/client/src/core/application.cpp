@@ -114,9 +114,9 @@ namespace HogwartsMP::Core {
             const char *connStateNames[] = {"Connecting", "Online", "Offline"};
 
             // versioning
-            DrawCornerText(CORNER_RIGHT_BOTTOM, "Hogwarts Legacy Multiplayer");
-            DrawCornerText(CORNER_RIGHT_BOTTOM, fmt::format("Framework version: {} ({})", Framework::Utils::Version::rel, Framework::Utils::Version::git));
-            DrawCornerText(CORNER_RIGHT_BOTTOM, fmt::format("HogwartsMP version: {} ({})", HogwartsMP::Version::rel, HogwartsMP::Version::git));
+            DrawCornerText(CORNER_RIGHT_TOP, "Hogwarts Legacy Multiplayer");
+            DrawCornerText(CORNER_RIGHT_TOP, fmt::format("Framework version: {} ({})", Framework::Utils::Version::rel, Framework::Utils::Version::git));
+            DrawCornerText(CORNER_RIGHT_TOP, fmt::format("HogwartsMP version: {} ({})", HogwartsMP::Version::rel, HogwartsMP::Version::git));
 
             // connection details
             DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Connection: {}", connStateNames[connState]));
