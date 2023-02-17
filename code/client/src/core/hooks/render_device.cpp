@@ -8,6 +8,7 @@
 #include <logging/logger.h>
 
 #include "../application.h"
+#include "../dx_test.h"
 
 class FD3D12Adapter {
   public:
@@ -64,6 +65,7 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
     }
 
     Framework::Logging::GetLogger("Hooks")->info("Main Window created (show now {}) = {}", showNow ? "yes" : "no", fmt::ptr(pThis->m_pMainWindow));
+    //HookDx();
 }
 
 void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) {
@@ -74,7 +76,18 @@ void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) 
 
 void FEngineLoop__BeginFrameRenderThread_Hook(void *pThis, FRHICommandListImmediate &cmdsList, uint64_t frameCount) {
     FEngineLoop__BeginFrameRenderThread_original(pThis, cmdsList, frameCount);
-    Framework::Logging::GetLogger("Hooks")->info(" Rendering thread tick");
+    //Framework::Logging::GetLogger("Hooks")->info(" Rendering thread tick");
+}
+
+typedef HRESULT(__fastcall *D3D12Viewport__PresentInternal_t)(void*, int32_t);
+D3D12Viewport__PresentInternal_t FD3D12Viewport__PresentInternal_original = nullptr;
+HRESULT __fastcall FD3D12Viewport__PresentInternal_Hook(void* _FD3D12Viewport, int32_t SwapInterval) {
+    const auto app = HogwartsMP::Core::gApplication.get();
+    if (app && app->IsInitialized()) {
+        app->GetImGUI()->Render();
+    }
+
+    return FD3D12Viewport__PresentInternal_original(_FD3D12Viewport, SwapInterval);
 }
 
 static InitFunction init([]() {
@@ -90,7 +103,11 @@ static InitFunction init([]() {
     const auto FD3D12Adapter__CreateRootDevice_Addr = hook::pattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 44 0F B6 FA").get_first();
     MH_CreateHook((LPVOID)FD3D12Adapter__CreateRootDevice_Addr, (PBYTE)FD3D12Adapter__CreateRootdevice_Hook, reinterpret_cast<void **>(&FD3D12Adapter__CreateRootdevice_original));
 
+    // Init our present hook
+    const auto FD3D12Viewport__PresentInternal_Addr = hook::pattern("89 54 24 10 4C 8B DC 57").get_first();
+    MH_CreateHook((LPVOID)FD3D12Viewport__PresentInternal_Addr, (PBYTE)FD3D12Viewport__PresentInternal_Hook, reinterpret_cast<void **>(&FD3D12Viewport__PresentInternal_original));
+
     // Initialize our Tick method
-    const auto FEngineLoop__BeginFrameRenderThread_Addr = hook::get_opcode_address("E8 ? ? ? ? EB 54 33 D2 48 8D 4D 50");
-    MH_CreateHook((LPVOID)FEngineLoop__BeginFrameRenderThread_Addr, (PBYTE)FEngineLoop__BeginFrameRenderThread_Hook, reinterpret_cast<void **>(&FEngineLoop__BeginFrameRenderThread_original));
+    //const auto FEngineLoop__BeginFrameRenderThread_Addr = hook::get_opcode_address("E8 ? ? ? ? EB 54 33 D2 48 8D 4D 50");
+    //MH_CreateHook((LPVOID)FEngineLoop__BeginFrameRenderThread_Addr, (PBYTE)FEngineLoop__BeginFrameRenderThread_Hook, reinterpret_cast<void **>(&FEngineLoop__BeginFrameRenderThread_original));
 });
