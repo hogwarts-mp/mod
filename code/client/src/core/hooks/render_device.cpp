@@ -10,6 +10,8 @@
 #include "../application.h"
 #include "dx12_pointer_grab.cpp"
 
+#include <imgui.h>
+
 class FD3D12Adapter {
   public:
     char pad0[0x18];
@@ -48,7 +50,6 @@ void FWindowsApplication__ProcessMessage_Hook(void* pThis, HWND hwnd, uint32_t m
 }
 
 /* ------------- DX12 hooks section ------------- */
-
 typedef long(__fastcall* IDXGISwapChain3__Present_t) (IDXGISwapChain3* pSwapChain, UINT SyncInterval, UINT Flags);
 IDXGISwapChain3__Present_t IDXGISwapChain3__Present_original = nullptr;
 
@@ -59,6 +60,24 @@ typedef void(*ID3D12CommandQueue__ExecuteCommandLists_t)(ID3D12CommandQueue* que
 ID3D12CommandQueue__ExecuteCommandLists_t ID3D12CommandQueue__ExecuteCommandLists_original = nullptr;
 
 long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT SyncInterval, UINT Flags) {
+    auto* app = HogwartsMP::Core::gApplication.get();
+    auto* renderer = app->GetRenderer();
+    
+    if(!renderer->IsInitialized()) {
+        auto opts = app->GetOptions();
+        if(opts->rendererOptions.d3d12.commandQueue) {
+            opts->rendererOptions.d3d12.swapchain = pSwapChain;
+
+            if (app->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
+                Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Rendering subsystems failed to initialize");
+            }
+        }
+    } else {
+        renderer->GetD3D12Backend()->Begin();
+        app->GetImGUI()->Render();
+        renderer->GetD3D12Backend()->End();
+    }
+
     return IDXGISwapChain3__Present_original(pSwapChain, SyncInterval, Flags);
 }
 
@@ -66,10 +85,12 @@ long __fastcall IDXGISwapChain3__ResizeBuffers_Hook(IDXGISwapChain3* pSwapChain,
     return IDXGISwapChain3__ResizeBuffers_orignal(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 }
 
-void ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue* queue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists) {
-    // if (!g_pD3DCommandQueue && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
-    //     g_pD3DCommandQueue = queue;
-    // }
+void __fastcall ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue* queue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists) {
+    
+    auto opts = HogwartsMP::Core::gApplication->GetOptions();
+    if (!opts->rendererOptions.d3d12.commandQueue && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
+        opts->rendererOptions.d3d12.commandQueue = queue;
+    }
 
     ID3D12CommandQueue__ExecuteCommandLists_original(queue, NumCommandLists, ppCommandLists);
 }
@@ -91,6 +112,7 @@ void HookDX12_Functions() {
     MH_CreateHook((LPVOID)pointers.IDXGISwapChain3__Present, (PBYTE)IDXGISwapChain3__Present_Hook, reinterpret_cast<void **>(&IDXGISwapChain3__Present_original));
     MH_CreateHook((LPVOID)pointers.IDXGISwapChain3__ResizeBuffers, (PBYTE)IDXGISwapChain3__ResizeBuffers_Hook, reinterpret_cast<void **>(&IDXGISwapChain3__ResizeBuffers_orignal));
     MH_CreateHook((LPVOID)pointers.ID3D12CommandQueue__ExecuteCommandLists, (PBYTE)ID3D12CommandQueue__ExecuteCommandLists_Hook, reinterpret_cast<void **>(&ID3D12CommandQueue__ExecuteCommandLists_original));
+    MH_EnableHook(NULL);
 }
 
 /* ---------------------------------------------- */
@@ -109,11 +131,6 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
     SetWindowTextA(pThis->m_pMainWindow, "Hogwarts: Advanced Multiplayer Edition");
     
     HookDX12_Functions();
-
-    if (HogwartsMP::Core::gApplication->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
-        Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Rendering subsystems failed to initialize");
-    }
-
     Framework::Logging::GetLogger("Hooks")->info("Main Window created (show now {}) = {}", showNow ? "yes" : "no", fmt::ptr(pThis->m_pMainWindow));
 }
 

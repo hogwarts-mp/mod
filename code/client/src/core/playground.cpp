@@ -215,17 +215,38 @@ AActor *__fastcall UWorld__SpawnActor_Hook(UWorld *world, UClass *Class, FTransf
     return UWorld__SpawnActor(world, Class, UserTransformPtr, SpawnParameters);
 }
 
+
+typedef UObject *(__fastcall *StaticConstructObject_Internal_t)(const FStaticConstructObjectParameters &Params);
+StaticConstructObject_Internal_t StaticConstructObject_Internal_original = nullptr;
+
+UObject *__fastcall StaticConstructObject_Internal_Hook(const FStaticConstructObjectParameters &Params) {
+    auto res = StaticConstructObject_Internal_original(Params);
+    // if (Params.Class && res) {
+    //     auto fullName = get_full_name(res);
+    //     if(fullName.find("Missions") != std::string::npos) {
+    //         Framework::Logging::GetLogger("Hooks")->info("ConstructObject: {}", fullName.c_str());
+    //     }
+    // }
+
+    return res;
+}
+
 static InitFunction init([]() {
     //NOTE: get GObjectArray
     auto Obj_Array_Scan      = hook::pattern("48 8D 0D ? ? ? ? E8 ? ? ? ? 48 8D 8D A0 02 00 00").get_first();
     uint8_t *Obj_Array_Bytes = reinterpret_cast<uint8_t *>(Obj_Array_Scan);
     GObjectArray             = reinterpret_cast<FUObjectArray *>(Obj_Array_Bytes + *(int32_t *)(Obj_Array_Bytes + 3) + 7);
 
+    //NOTE: spawn actor hook
     auto UWorld__SpawnActor_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 08 FF FF FF 48 81 EC F8 01 00 00 "
                                                                             "48 8B 05 ? ? ? ? 48 33 C4 48 89 45")
                                                                   .get_first());
 
     MH_CreateHook((LPVOID)UWorld__SpawnActor_Addr, &UWorld__SpawnActor_Hook, (LPVOID *)&UWorld__SpawnActor);
+
+    //NOTE: create static object hook
+    auto StaticConstructObject_Internal_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 10 48 89 74 24 18 55 57 41 54 41 56 41 57 48 8D AC 24 50 FF FF FF").get_first());
+    MH_CreateHook((LPVOID)StaticConstructObject_Internal_Addr, &StaticConstructObject_Internal_Hook, (LPVOID *)&StaticConstructObject_Internal_original);
 
     //NOTE: get pointer to world
     auto GWorld_Scan                  = hook::pattern("48 8B 1D ? ? ? ? 48 85 DB 74 3B 41 B0 01").get_first();
