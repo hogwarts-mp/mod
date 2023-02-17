@@ -8,7 +8,7 @@
 #include <logging/logger.h>
 
 #include "../application.h"
-#include "../dx_test.h"
+#include "dx12_pointer_grab.cpp"
 
 class FD3D12Adapter {
   public:
@@ -47,6 +47,54 @@ void FWindowsApplication__ProcessMessage_Hook(void* pThis, HWND hwnd, uint32_t m
     FWindowsApplication__ProcessMessage_original(pThis, hwnd, msg, wParam, lParam);
 }
 
+/* ------------- DX12 hooks section ------------- */
+
+typedef long(__fastcall* IDXGISwapChain3__Present_t) (IDXGISwapChain3* pSwapChain, UINT SyncInterval, UINT Flags);
+IDXGISwapChain3__Present_t IDXGISwapChain3__Present_original = nullptr;
+
+typedef long(__fastcall* IDXGISwapChain3__ResizeBuffers_t)(IDXGISwapChain3* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags);
+static IDXGISwapChain3__ResizeBuffers_t IDXGISwapChain3__ResizeBuffers_orignal = nullptr;
+
+typedef void(*ID3D12CommandQueue__ExecuteCommandLists_t)(ID3D12CommandQueue* queue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists);
+ID3D12CommandQueue__ExecuteCommandLists_t ID3D12CommandQueue__ExecuteCommandLists_original = nullptr;
+
+long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT SyncInterval, UINT Flags) {
+    return IDXGISwapChain3__Present_original(pSwapChain, SyncInterval, Flags);
+}
+
+long __fastcall IDXGISwapChain3__ResizeBuffers_Hook(IDXGISwapChain3* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) {
+    return IDXGISwapChain3__ResizeBuffers_orignal(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+}
+
+void ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue* queue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists) {
+    // if (!g_pD3DCommandQueue && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
+    //     g_pD3DCommandQueue = queue;
+    // }
+
+    ID3D12CommandQueue__ExecuteCommandLists_original(queue, NumCommandLists, ppCommandLists);
+}
+
+void HookDX12_Functions() {
+    auto pointersRes = GrabDX12Pointers();
+    if(!pointersRes.has_value()) {
+        Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Unable to grab DX12 pointers !"); 
+        return;
+    }
+
+    auto pointers = pointersRes.value();
+    Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("DX12 pointers ExecuteCommandLists: {} Present: {} ResizeBuffers: {}", 
+        pointers.ID3D12CommandQueue__ExecuteCommandLists,
+        pointers.IDXGISwapChain3__Present,
+        pointers.IDXGISwapChain3__ResizeBuffers
+    );
+
+    MH_CreateHook((LPVOID)pointers.IDXGISwapChain3__Present, (PBYTE)IDXGISwapChain3__Present_Hook, reinterpret_cast<void **>(&IDXGISwapChain3__Present_original));
+    MH_CreateHook((LPVOID)pointers.IDXGISwapChain3__ResizeBuffers, (PBYTE)IDXGISwapChain3__ResizeBuffers_Hook, reinterpret_cast<void **>(&IDXGISwapChain3__ResizeBuffers_orignal));
+    MH_CreateHook((LPVOID)pointers.ID3D12CommandQueue__ExecuteCommandLists, (PBYTE)ID3D12CommandQueue__ExecuteCommandLists_Hook, reinterpret_cast<void **>(&ID3D12CommandQueue__ExecuteCommandLists_original));
+}
+
+/* ---------------------------------------------- */
+
 void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **definitions, HINSTANCE inst, void *parent, bool showNow) {
     FWindowsWindow__Initialize_original(pThis, app, definitions, inst, parent, showNow);
 
@@ -59,13 +107,14 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
     opts->rendererOptions.windowHandle = HogwartsMP::Core::gGlobals.window;
 
     SetWindowTextA(pThis->m_pMainWindow, "Hogwarts: Advanced Multiplayer Edition");
+    
+    HookDX12_Functions();
 
     if (HogwartsMP::Core::gApplication->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
         Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Rendering subsystems failed to initialize");
     }
 
     Framework::Logging::GetLogger("Hooks")->info("Main Window created (show now {}) = {}", showNow ? "yes" : "no", fmt::ptr(pThis->m_pMainWindow));
-    //HookDx();
 }
 
 void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) {
@@ -74,21 +123,21 @@ void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) 
     Framework::Logging::GetLogger("Hooks")->info("D3D12 RootDevice created (with debug {}) = {}", withDebug ? "yes" : "no", fmt::ptr(pThis->m_pDevice));
 }
 
-void FEngineLoop__BeginFrameRenderThread_Hook(void *pThis, FRHICommandListImmediate &cmdsList, uint64_t frameCount) {
-    FEngineLoop__BeginFrameRenderThread_original(pThis, cmdsList, frameCount);
-    //Framework::Logging::GetLogger("Hooks")->info(" Rendering thread tick");
-}
+// void FEngineLoop__BeginFrameRenderThread_Hook(void *pThis, FRHICommandListImmediate &cmdsList, uint64_t frameCount) {
+//     FEngineLoop__BeginFrameRenderThread_original(pThis, cmdsList, frameCount);
+//     //Framework::Logging::GetLogger("Hooks")->info(" Rendering thread tick");
+// }
 
-typedef HRESULT(__fastcall *D3D12Viewport__PresentInternal_t)(void*, int32_t);
-D3D12Viewport__PresentInternal_t FD3D12Viewport__PresentInternal_original = nullptr;
-HRESULT __fastcall FD3D12Viewport__PresentInternal_Hook(void* _FD3D12Viewport, int32_t SwapInterval) {
-    const auto app = HogwartsMP::Core::gApplication.get();
-    if (app && app->IsInitialized()) {
-        app->GetImGUI()->Render();
-    }
+// typedef HRESULT(__fastcall *D3D12Viewport__PresentInternal_t)(void*, int32_t);
+// D3D12Viewport__PresentInternal_t FD3D12Viewport__PresentInternal_original = nullptr;
+// HRESULT __fastcall FD3D12Viewport__PresentInternal_Hook(void* _FD3D12Viewport, int32_t SwapInterval) {
+//     const auto app = HogwartsMP::Core::gApplication.get();
+//     if (app && app->IsInitialized()) {
+//         app->GetImGUI()->Render();
+//     }
 
-    return FD3D12Viewport__PresentInternal_original(_FD3D12Viewport, SwapInterval);
-}
+//     return FD3D12Viewport__PresentInternal_original(_FD3D12Viewport, SwapInterval);
+// }
 
 static InitFunction init([]() {
     // Initialize our FWindowsWindow Initialize method
@@ -104,8 +153,8 @@ static InitFunction init([]() {
     MH_CreateHook((LPVOID)FD3D12Adapter__CreateRootDevice_Addr, (PBYTE)FD3D12Adapter__CreateRootdevice_Hook, reinterpret_cast<void **>(&FD3D12Adapter__CreateRootdevice_original));
 
     // Init our present hook
-    const auto FD3D12Viewport__PresentInternal_Addr = hook::pattern("89 54 24 10 4C 8B DC 57").get_first();
-    MH_CreateHook((LPVOID)FD3D12Viewport__PresentInternal_Addr, (PBYTE)FD3D12Viewport__PresentInternal_Hook, reinterpret_cast<void **>(&FD3D12Viewport__PresentInternal_original));
+    // const auto FD3D12Viewport__PresentInternal_Addr = hook::pattern("89 54 24 10 4C 8B DC 57").get_first();
+    // MH_CreateHook((LPVOID)FD3D12Viewport__PresentInternal_Addr, (PBYTE)FD3D12Viewport__PresentInternal_Hook, reinterpret_cast<void **>(&FD3D12Viewport__PresentInternal_original));
 
     // Initialize our Tick method
     //const auto FEngineLoop__BeginFrameRenderThread_Addr = hook::get_opcode_address("E8 ? ? ? ? EB 54 33 D2 48 8D 4D 50");
