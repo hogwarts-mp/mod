@@ -1,4 +1,4 @@
-set(UE4_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/Source)
+set(UE4_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/src/sdk)
 
 message(UE4_SOURCE_DIR="${UE4_SOURCE_DIR}")
 
@@ -8,6 +8,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/hooks/gamemode.cpp
     src/core/hooks/player_controller.cpp
     src/core/hooks/render_device.cpp
+    src/core/hooks/world.cpp
     src/core/modules/human.cpp
     src/core/application.cpp
     src/core/dev_features.cpp
