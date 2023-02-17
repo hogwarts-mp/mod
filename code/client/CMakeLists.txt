@@ -10,6 +10,9 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/hooks/render_device.cpp
     src/core/hooks/world.cpp
     src/core/modules/human.cpp
+    src/core/states/initialize.cpp
+    src/core/states/menu.cpp
+    src/core/states/shutdown.cpp
     src/core/application.cpp
     src/core/dev_features.cpp
     src/core/ue4_impl.cpp

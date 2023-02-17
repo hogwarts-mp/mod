@@ -6,6 +6,11 @@
 #include <cppfs/fs.h>
 #include <utils/version.h>
 
+#include "states/initialize.h"
+#include "states/menu.h"
+#include "states/shutdown.h"
+#include "states/states.h"
+
 #include "shared/modules/human_sync.hpp"
 #include "shared/modules/mod.hpp"
 
@@ -24,6 +29,15 @@ namespace HogwartsMP::Core {
     std::unique_ptr<Application> gApplication = nullptr;
 
     bool Application::PostInit() {
+        // Create the state machine and initialize
+        _stateMachine = std::make_shared<Framework::Utils::States::Machine>();
+        _stateMachine->RegisterState<States::InitializeState>();
+        _stateMachine->RegisterState<States::InMenuState>();
+        _stateMachine->RegisterState<States::ShutdownState>();
+
+        // This must always be the last call
+        _stateMachine->RequestNextState(States::StateIds::Initialize);
+
         _commandProcessor = std::make_shared<Framework::Utils::CommandProcessor>();
         _input            = std::make_shared<HogwartsMP::Game::GameInput>();
         _console          = std::make_shared<UI::HogwartsConsole>(_commandProcessor, _input);
@@ -66,6 +80,10 @@ namespace HogwartsMP::Core {
     }
 
     void Application::PostUpdate() {
+        if (_stateMachine) {
+            _stateMachine->Update();
+        }
+
         // Tick discord instance - Temporary
         const auto discordApi = Core::gApplication->GetPresence();
         if (discordApi && discordApi->IsInitialized()) {

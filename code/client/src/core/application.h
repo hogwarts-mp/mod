@@ -7,6 +7,7 @@
 #include <integrations/client/instance.h>
 #include <graphics/backend/d3d12.h>
 #include "dev_features.h"
+#include <utils/states/machine.h>
 
 #include "ui/chat.h"
 #include "ui/console.h"
@@ -27,6 +28,7 @@ namespace HogwartsMP::Core {
         flecs::entity _localPlayer;
         float _tickInterval = 0.01667f;
 
+        std::shared_ptr<Framework::Utils::States::Machine> _stateMachine;
         std::shared_ptr<HogwartsMP::Game::GameInput> _input;
         std::shared_ptr<UI::HogwartsConsole> _console;
         std::shared_ptr<UI::Chat> _chat;
@@ -40,6 +42,10 @@ namespace HogwartsMP::Core {
 
         float GetTickInterval() const {
             return _tickInterval;
+        }
+
+        std::shared_ptr<Framework::Utils::States::Machine> GetStateMachine() const {
+            return _stateMachine;
         }
 
         std::shared_ptr<Framework::Utils::CommandProcessor> GetCommandProcessor() const {
