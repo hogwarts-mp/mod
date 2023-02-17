@@ -1,6 +1,7 @@
 #include "initialize.h"
 
 #include "states.h"
+#include "../application.h"
 
 #include <utils/states/machine.h>
 
@@ -27,6 +28,6 @@ namespace HogwartsMP::Core::States {
     }
 
     bool InitializeState::OnUpdate(Framework::Utils::States::Machine *) {
-        return true;
+        return Core::gGlobals.world != nullptr;
     }
 } // namespace MafiaMP::Core::States

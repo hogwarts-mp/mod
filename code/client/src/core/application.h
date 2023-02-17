@@ -74,7 +74,7 @@ namespace HogwartsMP::Core {
         HWND window                                                          = nullptr;
         ID3D12Device *device                                                      = nullptr;
         FUObjectArray *objectArray                                                = {nullptr};
-        UWorld *world                                                             = nullptr;
+        UWorld **world                                                             = nullptr;
     };
 
     extern Globals gGlobals;
