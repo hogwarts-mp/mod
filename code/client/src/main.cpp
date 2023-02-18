@@ -9,6 +9,8 @@
 
 #include "core/application.h"
 
+#include "shared/version.h"
+
 /* extern "C" void __declspec(dllexport) InitClient(const wchar_t *projectPath) {
     Framework::Logging::GetInstance()->SetLogName("HogwartsMP");
     Framework::Logging::GetInstance()->SetLogFolder(Framework::Utils::StringUtils::WideToNormal(projectPath) + "\\logs");
@@ -36,6 +38,8 @@ char *GetNarrowWinMainCommandLine() {
         opts.initRendererManually  = true;
         opts.usePresence  = true;
         opts.useImGUI     = true;
+        opts.gameName     = "Hogwarts Legacy";
+        opts.gameVersion  = HogwartsMP::Version::rel;
         opts.rendererOptions.backend = Framework::Graphics::RendererBackend::BACKEND_D3D_12;
         opts.rendererOptions.platform = Framework::Graphics::PlatformBackend::PLATFORM_WIN32;
 

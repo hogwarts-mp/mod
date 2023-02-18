@@ -3,6 +3,8 @@ set(HOGWARTSMP_SERVER_FILES
     src/core/server.cpp
 
     src/core/modules/human.cpp
+
+    ${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp
 )
 
 add_executable(HogwartsMPServer ${HOGWARTSMP_SERVER_FILES})
