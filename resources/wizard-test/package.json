@@ -1,0 +1,6 @@
+{
+	"name": "wizard-test",
+	"main": "index.js",
+	"version": "0.0.1",
+	"mod": "HogwartsMP"
+}
