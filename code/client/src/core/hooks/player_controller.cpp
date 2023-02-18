@@ -49,6 +49,6 @@ static InitFunction init([]() {
     MH_CreateHook((LPVOID)APlayerController_EndPlay_Addr, (PBYTE)APlayerController_EndPlay_Hook, reinterpret_cast<void **>(&APlayerController_EndPlay_original));
 
     // Hook player controller tick player function
-    const auto APlayerController_TickActor_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 53 55 57 48 81 EC ? ? ? ? 48 8B F9").get_first());
-    MH_CreateHook((LPVOID)APlayerController_TickActor_Addr, (PBYTE)APlayerController_TickActor_Hook, reinterpret_cast<void **>(&APlayerController_TickActor_original));
+    // const auto APlayerController_TickActor_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 53 55 57 48 81 EC ? ? ? ? 48 8B F9").get_first());
+    // MH_CreateHook((LPVOID)APlayerController_TickActor_Addr, (PBYTE)APlayerController_TickActor_Hook, reinterpret_cast<void **>(&APlayerController_TickActor_original));
 });

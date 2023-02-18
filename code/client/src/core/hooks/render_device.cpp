@@ -42,7 +42,7 @@ void FWindowsApplication__ProcessMessage_Hook(void* pThis, HWND hwnd, uint32_t m
     if (app && app->IsInitialized()) {
         app->GetInput()->ProcessEvent(hwnd, msg, wParam, lParam);
 
-        if (app->GetImGUI()->ProcessEvent(hwnd, msg, wParam, lParam) == Framework::External::ImGUI::InputState::BLOCK) {
+        if (app->AreControlsLocked() && app->GetImGUI()->ProcessEvent(hwnd, msg, wParam, lParam) == Framework::External::ImGUI::InputState::BLOCK) {
             return;
         }
     }
@@ -71,6 +71,9 @@ long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT 
             if (app->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
                 Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Rendering subsystems failed to initialize");
             }
+
+            ImGuiIO& io = ImGui::GetIO();
+            io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
         }
     } else {
         renderer->GetD3D12Backend()->Begin();

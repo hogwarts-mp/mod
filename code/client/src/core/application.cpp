@@ -197,5 +197,7 @@ namespace HogwartsMP::Core {
             // Disable cursor
             GetImGUI()->ShowCursor(false);
         }
+
+        _controlsLocked = lock;
     }
 }
