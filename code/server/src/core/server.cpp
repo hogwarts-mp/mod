@@ -70,5 +70,18 @@ namespace HogwartsMP {
         Framework::Logging::GetLogger("chat")->info(fmt::format("[{}] {}", ent.id(), msg));
     }
     void Server::InitRPCs() {
+        const auto net = GetNetworkingEngine()->GetNetworkServer();
+        net->RegisterRPC<Shared::RPC::ChatMessage>([this](SLNet::RakNetGUID guid, Shared::RPC::ChatMessage *chatMessage) {
+            if (!chatMessage->Valid())
+                return;
+
+            const auto ent = GetWorldEngine()->GetEntityByGUID(guid.g);
+            if (!ent.is_alive())
+                return;
+
+            const auto st  = ent.get<Framework::World::Modules::Base::Streamer>();
+            const auto msg = fmt::format("{}: {}", st->nickname, chatMessage->GetText());
+            BroadcastChatMessage(ent, msg);
+        });
     }
 } // namespace HogwartsMP
