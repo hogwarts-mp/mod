@@ -8,6 +8,8 @@
 
 #include <fmt/format.h>
 
+#include "builtins/builtins.h"
+
 namespace HogwartsMP {
     void Server::PostInit() {
         _serverRef = this;
@@ -37,7 +39,7 @@ namespace HogwartsMP {
             const auto msg = fmt::format("Player {} has joined the session!", st->nickname);
             BroadcastChatMessage(player, msg);
 
-            // Scripting::Human::EventPlayerConnected(v8::Isolate::GetCurrent(), player);
+            Scripting::Human::EventPlayerConnected(v8::Isolate::GetCurrent(), player);
         });
 
         SetOnPlayerDisconnectCallback([this](flecs::entity player, uint64_t) {
@@ -45,7 +47,7 @@ namespace HogwartsMP {
             const auto msg = fmt::format("Player {} has left the session!", st->nickname);
             BroadcastChatMessage(player, msg);
 
-            // Scripting::Human::EventPlayerDisconnected(v8::Isolate::GetCurrent(), player);
+            Scripting::Human::EventPlayerDisconnected(v8::Isolate::GetCurrent(), player);
         });
 
         InitRPCs();
@@ -62,7 +64,7 @@ namespace HogwartsMP {
             return;
 
         const auto nodeSDK = sdk.GetNodeSDK();
-        // TODO: register scripting builtins layer
+        Scripting::Builtins::Register(nodeSDK->GetIsolate(), nodeSDK->GetModule());
     }
 
     void Server::BroadcastChatMessage(flecs::entity ent, const std::string &msg) {
