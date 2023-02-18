@@ -33,7 +33,7 @@ char *GetNarrowWinMainCommandLine() {
     HogwartsMP::Core::gApplication.reset(new HogwartsMP::Core::Application);
     if (HogwartsMP::Core::gApplication && !HogwartsMP::Core::gApplication->IsInitialized()) {
         Framework::Integrations::Client::InstanceOptions opts;
-        opts.discordAppId = 1075742680321114212;
+        opts.discordAppId = 1076503389606789130;
         opts.useRenderer  = true;
         opts.initRendererManually  = true;
         opts.usePresence  = true;
