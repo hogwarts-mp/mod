@@ -39,7 +39,7 @@ namespace HogwartsMP {
             const auto msg = fmt::format("Player {} has joined the session!", st->nickname);
             BroadcastChatMessage(player, msg);
 
-            Scripting::Human::EventPlayerConnected(v8::Isolate::GetCurrent(), player);
+            Scripting::Human::EventPlayerConnected(player);
         });
 
         SetOnPlayerDisconnectCallback([this](flecs::entity player, uint64_t) {
@@ -47,7 +47,7 @@ namespace HogwartsMP {
             const auto msg = fmt::format("Player {} has left the session!", st->nickname);
             BroadcastChatMessage(player, msg);
 
-            Scripting::Human::EventPlayerDisconnected(v8::Isolate::GetCurrent(), player);
+            Scripting::Human::EventPlayerDisconnected(player);
         });
 
         InitRPCs();
