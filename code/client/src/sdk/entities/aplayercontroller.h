@@ -5,6 +5,8 @@
 #include "apawn.h"
 #include "acontroller.h"
 
+#include "../camera/aplayercameramanager.h"
+
 #include "../containers/frotator.h"
 #include "../containers/tarray.h"
 #include "../containers/fvector.h"
@@ -17,8 +19,8 @@ namespace SDK {
         APawn *AcknowledgedPawn;                                                            // 02C8 - 02D0                                              
         struct UInterpTrackInstDirector *ControllingDirTrackInst;                           // 02D0 - 02D8
         struct AHUD *MyHUD;                                                                 // 02D8 - 02E0
-        struct APlayerCameraManager *PlayerCameraManager;                                   // 02E0 - 02E8
-        struct APlayerCameraManager *PlayerCameraManagerClass;                              // 02E8 - 02F0
+        APlayerCameraManager *PlayerCameraManager;                                          // 02E0 - 02E8
+        APlayerCameraManager *PlayerCameraManagerClass;                                     // 02E8 - 02F0
         bool bAutoManageActiveCameraTarget;                                                 // 02F0 - 02F1
         char pad0[0x3];                                                                     // 02F1 - 02F4
         FRotator TargetViewRotation;                                                        // 02F4 - 0300                                                       
