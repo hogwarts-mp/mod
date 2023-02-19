@@ -10,8 +10,9 @@
 #include "../containers/fvector.h"
 
 namespace SDK {
+    class UPlayer;
     struct APlayerController: AController {
-        struct UPlayer *Player;                                                      
+        UPlayer *Player;                                                      
         APawn *AcknowledgedPawn;                                              
         struct UInterpTrackInstDirector *ControllingDirTrackInst;                    
         struct AHUD *MyHUD;                                                          
@@ -24,7 +25,7 @@ namespace SDK {
         float SmoothTargetViewRotationSpeed;                                         
         char pad2[0x8];                                                           
         TArray<AActor *> HiddenActors;                                 
-        TArray<struct UPrimitiveComponent> HiddenPrimitiveComponents;         
+        TArray<class UPrimitiveComponent> HiddenPrimitiveComponents;         
         char pad3[0x4];                                                           
         float LastSpectatorStateSynchTime;                                           
         struct FVector LastSpectatorSyncLocation;                                    

@@ -27,6 +27,8 @@
 
 #include "shared/version.h"
 
+#include "../sdk/game/ulevel.h"
+
 
 namespace HogwartsMP::Core {
     Globals gGlobals;
@@ -90,6 +92,42 @@ namespace HogwartsMP::Core {
     void Application::PostUpdate() {
         if (_stateMachine) {
             _stateMachine->Update();
+        }
+
+        // If we don't have the local player yet, we try to grab it at each tick until we have it
+        // This should be part of a hook "once map loaded" or "once local player created"
+        if (!gGlobals.localPlayer) {
+            if (!gGlobals.world) {
+                return;
+            }
+
+            const auto world = *gGlobals.world;
+            if (!world) {
+                return;
+            }
+
+            const auto persistentLevel = world->PersistentLevel;
+            if (!persistentLevel) {
+                return;
+            }
+
+            const auto owningWorld = persistentLevel->OwningWorld;
+            if (!owningWorld) {
+                return;
+            }
+
+            const auto gameInstance = owningWorld->OwningGameInstance;
+            if (!gameInstance) {
+                return;
+            }
+
+            const auto localPlayer = gameInstance->LocalPlayers.Data[0];
+            if (!localPlayer) {
+                return;
+            }
+
+            gGlobals.localPlayer = localPlayer;
+            Framework::Logging::GetLogger("Application")->info("Found local player at {}", fmt::ptr(localPlayer));
         }
 
         // Tick discord instance - Temporary

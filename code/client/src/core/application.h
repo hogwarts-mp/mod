@@ -19,6 +19,10 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/UnrealType.h"
 
+#include "sdk/entities/ulocalplayer.h"
+#include "sdk/game/ugameinstance.h"
+#include "sdk/game/uworld.h"
+
 namespace HogwartsMP::Core {
     class Application : public Framework::Integrations::Client::Instance {
       private:
@@ -79,7 +83,8 @@ namespace HogwartsMP::Core {
         HWND window                                                          = nullptr;
         ID3D12Device *device                                                      = nullptr;
         FUObjectArray *objectArray                                                = {nullptr};
-        UWorld **world                                                             = nullptr;
+        SDK::ULocalPlayer *localPlayer                                            = nullptr;
+        SDK::UWorld **world                                                             = nullptr;
     };
 
     extern Globals gGlobals;

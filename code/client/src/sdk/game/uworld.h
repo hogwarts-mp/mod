@@ -4,6 +4,7 @@
 #include "../types/uobject.h"
 
 namespace SDK {
+    class ULevel;
     class UWorld: public UObject {
       public:
         char pad0[0x8];                         

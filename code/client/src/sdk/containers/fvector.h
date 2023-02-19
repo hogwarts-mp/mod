@@ -2,7 +2,7 @@
 
 namespace SDK {
     struct FVector {
-        float X
+        float X;
         float Y;
         float Z;
     };

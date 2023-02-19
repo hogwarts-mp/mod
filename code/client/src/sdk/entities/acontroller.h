@@ -15,7 +15,7 @@ namespace SDK {
         APawn *Pawn;                        
         char pad2[0x8];                         
         ACharacter *Character;              
-        struct USceneComponent *TransformComponent;
+        class USceneComponent *TransformComponent;
         char pad3[0x18];                        
         char ControlRotation[0x0c];
         char bAttachToPawn : 1;

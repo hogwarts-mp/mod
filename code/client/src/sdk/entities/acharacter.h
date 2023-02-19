@@ -5,7 +5,7 @@
 namespace SDK {
     class ACharacter: public APawn {
       public:
-        struct USkeletalMeshComponent *Mesh;                   
+        class USkeletalMeshComponent *Mesh;                   
         struct UCharacterMovementComponent *CharacterMovement; 
         struct UCapsuleComponent *CapsuleComponent;            
         char BasedMovement[0x30];
