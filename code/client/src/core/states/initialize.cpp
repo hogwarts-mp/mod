@@ -28,6 +28,6 @@ namespace HogwartsMP::Core::States {
     }
 
     bool InitializeState::OnUpdate(Framework::Utils::States::Machine *) {
-        return Core::gGlobals.world != nullptr;
+        return Core::gGlobals.world != nullptr && Core::gGlobals.localPlayer != nullptr;
     }
 } // namespace MafiaMP::Core::States
