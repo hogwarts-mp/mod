@@ -39,7 +39,7 @@ namespace HogwartsMP::Core {
         std::shared_ptr<Framework::Utils::CommandProcessor> _commandProcessor;
         DevFeatures _devFeatures;
 
-        bool _controlsLocked = false;
+        int _controlsLocked = 0;
 
       public:
         bool PostInit() override;
@@ -72,7 +72,7 @@ namespace HogwartsMP::Core {
 
         void LockControls(bool lock);
         bool AreControlsLocked() const {
-            return _controlsLocked;
+            return _controlsLocked>0;
         }
 
         uint64_t GetLocalPlayerID();
