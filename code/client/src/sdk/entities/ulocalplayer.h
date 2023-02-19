@@ -3,11 +3,13 @@
 #include "uplayer.h"
 #include "aplayercontroller.h"
 
+#include "../render/ugameviewportclient.h"
+
 namespace SDK {
     class ULocalPlayer: public UPlayer {
       public:
         char pad0[0x28];                                           
-        class UGameViewportClient *ViewportClient;    
+        UGameViewportClient *ViewportClient;    
         char pad1[0x1c];
         char AspectRatioAxisConstraint[0x01];                        
         char pad2[0x3];                                            
