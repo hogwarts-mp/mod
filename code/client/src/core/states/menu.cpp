@@ -33,7 +33,7 @@ namespace HogwartsMP::Core::States {
         // Game::Helpers::Controls::Lock(true);
 
         // Enable cursor
-        gApplication->GetImGUI()->ShowCursor(true);
+        gApplication->LockControls(true);
         return true;
     }
 
@@ -42,7 +42,7 @@ namespace HogwartsMP::Core::States {
         // Game::Helpers::Camera::ResetBehindPlayer();
 
         // Hide cursor
-        gApplication->GetImGUI()->ShowCursor(false);
+        gApplication->LockControls(false);
         return true;
     }
 

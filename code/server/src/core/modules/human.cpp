@@ -71,8 +71,7 @@ namespace HogwartsMP::Core::Modules {
             }
 
             auto trackingMetadata = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
-            // *trackingMetadata = newData;
-            // todo update data
+            *trackingMetadata = msg->GetData();
         });
     }
 } // namespace HogwartsMP::Core::Modules

@@ -9,6 +9,10 @@
 #include "states/initialize.h"
 #include "states/menu.h"
 #include "states/shutdown.h"
+#include "states/session_offline_debug.h"
+#include "states/session_connection.h"
+#include "states/session_connected.h"
+#include "states/session_disconnection.h"
 #include "states/states.h"
 
 #include "shared/modules/human_sync.hpp"
@@ -34,6 +38,10 @@ namespace HogwartsMP::Core {
         _stateMachine->RegisterState<States::InitializeState>();
         _stateMachine->RegisterState<States::InMenuState>();
         _stateMachine->RegisterState<States::ShutdownState>();
+        _stateMachine->RegisterState<States::SessionOfflineDebugState>();
+        _stateMachine->RegisterState<States::SessionConnectionState>();
+        _stateMachine->RegisterState<States::SessionConnectedState>();
+        _stateMachine->RegisterState<States::SessionDisconnectionState>();
 
         // This must always be the last call
         _stateMachine->RequestNextState(States::StateIds::Initialize);
@@ -90,13 +98,6 @@ namespace HogwartsMP::Core {
             discordApi->SetPresence("Broomstick", "Flying around", discord::ActivityType::Playing);
         }
 
-        // todo move to state later
-        gApplication->GetImGUI()->PushWidget([]() {
-            if (!gApplication->GetDevConsole()->IsOpen()){
-                gApplication->GetChat()->Update();
-            }
-        });
-
         #if 1
         Core::gApplication->GetImGUI()->PushWidget([&]() {
             using namespace Framework::External::ImGUI::Widgets;
@@ -133,6 +134,7 @@ namespace HogwartsMP::Core {
         SetOnConnectionFinalizedCallback([this](flecs::entity newPlayer, float tickInterval) {
             _tickInterval = tickInterval;
             _localPlayer = newPlayer;
+            _stateMachine->RequestNextState(States::StateIds::SessionConnected);
             Core::Modules::Human::SetupLocalPlayer(this, newPlayer);
 
             Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Connection established!");
@@ -140,6 +142,7 @@ namespace HogwartsMP::Core {
 
         SetOnConnectionClosedCallback([this]() {
             Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Connection lost!");
+            _stateMachine->RequestNextState(States::StateIds::SessionDisconnection);
         });
 
         InitRPCs();
@@ -197,5 +200,7 @@ namespace HogwartsMP::Core {
             // Disable cursor
             GetImGUI()->ShowCursor(false);
         }
+
+        _controlsLocked = lock;
     }
 }
