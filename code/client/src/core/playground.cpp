@@ -11,6 +11,8 @@
 #include "UObject/UnrealType.h"
 
 #include "application.h"
+#include <utils/string_utils.h>
+#include <imgui.h>
 
 static FUObjectArray *GObjectArray {nullptr};
 
@@ -184,35 +186,130 @@ struct FActorSpawnParameters {
 typedef AActor *(__fastcall *UWorld__SpawnActor_t)(UWorld *world, UClass *Class, FTransform const *UserTransformPtr, const FActorSpawnParameters &SpawnParameters);
 UWorld__SpawnActor_t UWorld__SpawnActor = nullptr;
 
+typedef bool *(__fastcall *UWorld__DestroyActor_t)(UWorld *world, AActor* ThisActor, bool bNetForce, bool bShouldModifyLevel );
+UWorld__DestroyActor_t UWorld__DestroyActor = nullptr;
+
 UWorld **GWorld = nullptr;
 
+using namespace Framework::Utils::StringUtils;
+
 void Playground_Tick() {
-    if (GetAsyncKeyState(FW_KEY_F2) & 1) {
-        
-        auto *found_object = (UClass *)find_uobject("BlueprintGeneratedClass /Game/Pawn/NPC/Creature/GreyCat/BP_GreyCat_Creature.BP_GreyCat_Creature_C");
-        if (!found_object) {
-            Framework::Logging::GetLogger("Hooks")->info("Unable to find object !");
-            return;
+    static AActor* lastActor = nullptr;
+
+    static char teleportLocation[250] = "FT_HW_TrophyRoom";
+    static bool doTeleport = false;
+
+    static char spawnObject[250] = "BlueprintGeneratedClass /Game/Pawn/NPC/Creature/GreyCat/BP_GreyCat_Creature.BP_GreyCat_Creature_C";
+    static bool doSpawn = false;
+    
+    static std::vector<AActor*> spawnedActors;
+
+    HogwartsMP::Core::gApplication->GetImGUI()->PushWidget([&]() {
+        ImGui::Begin("Playground");
+
+        ImGui::Separator();
+        ImGui::InputText("Location", teleportLocation, 250);
+        if(ImGui::Button("Teleport")) {
+            UClass* fastTravelManager = (UClass*)find_uobject("Class /Script/Phoenix.FastTravelManager");
+            UFunction* fastTravelManagerGetter = (UFunction*)find_uobject("Function /Script/Phoenix.FastTravelManager.Get");
+
+            UClass* fastTravelmanagerInsance{nullptr};
+            fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void*)&fastTravelmanagerInsance);
+
+            if(fastTravelmanagerInsance) {
+                auto wideTeleportLocation = NormalToWideDirect(teleportLocation);
+                FString name(wideTeleportLocation.c_str());
+                Framework::Logging::GetLogger("Hooks")->info("Teleporting to {}, instance: {} !", teleportLocation, (void*)fastTravelmanagerInsance);
+
+                UFunction* fastTravelTo = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
+                fastTravelmanagerInsance->ProcessEvent(fastTravelTo, (void*)&name);
+            }
         }
 
-        Framework::Logging::GetLogger("Hooks")->info("Found UObject: {}", narrow(found_object->GetFName().ToString()).c_str());
+        ImGui::Separator();
+        ImGui::InputText("UObject name", spawnObject, 250);
+        if(ImGui::Button("Spawn Actor")) {
+            auto *foundObject = (UClass *)find_uobject(spawnObject);
+            if (!foundObject) {
+                Framework::Logging::GetLogger("Hooks")->info("Unable to find object !");
+                ImGui::End();
+                return;
+            }
 
-        FTransform transform {};
-        FVector pos = { 351002.25f, -463037.25f, -85707.94531f };
-        transform.SetTranslation(pos);
+            Framework::Logging::GetLogger("Hooks")->info("Found UObject: {}", narrow(foundObject->GetFName().ToString()).c_str());
 
-        FActorSpawnParameters spawnParams {};
-        spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-        //spawnParams.Name                           = found_object->GetFName();
+            FTransform transform {};
+            FVector pos = { 351002.25f, -463037.25f, -85707.94531f };
+            transform.SetTranslation(pos);
 
-        auto *new_object = UWorld__SpawnActor(*GWorld, found_object, &transform, spawnParams);
-        Framework::Logging::GetLogger("Hooks")->info("Spawned actor: {}", (void *)found_object);
-    }
+            FActorSpawnParameters spawnParams {};
+            spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+   
+            lastActor = UWorld__SpawnActor(*GWorld, foundObject, &transform, spawnParams);
+            if(lastActor != nullptr) {
+                spawnedActors.push_back(lastActor);
+            }
+            Framework::Logging::GetLogger("Hooks")->info("Spawned actor: {}", (void *)lastActor);
+        }
+
+        if(ImGui::Button("Destroy Actor")) {
+            if(lastActor) {
+                // UWorld__DestroyActor(*GWorld, lastActor, false, true);
+                // Framework::Logging::GetLogger("Hooks")->info("Destroyed actor: {}", (void *)lastActor);
+                // lastActor = nullptr;
+                for(auto* actor : spawnedActors) {
+                    UWorld__DestroyActor(*GWorld, actor, false, true);
+                }
+            }
+        }
+
+        ImGui::End();
+    });
 }
 
 AActor *__fastcall UWorld__SpawnActor_Hook(UWorld *world, UClass *Class, FTransform const *UserTransformPtr, const FActorSpawnParameters &SpawnParameters) {
     //Framework::Logging::GetLogger("Hooks")->info("Spawned actor class: {} name: {}", narrow(Class->GetFName().ToString()).c_str(), narrow(SpawnParameters.Name.ToString()));
     return UWorld__SpawnActor(world, Class, UserTransformPtr, SpawnParameters);
+}
+
+struct FURL
+{
+	// Protocol, i.e. "unreal" or "http".
+	FString Protocol;
+
+	// Optional hostname, i.e. "204.157.115.40" or "unreal.epicgames.com", blank if local.
+	FString Host;
+
+	// Optional host port.
+	int32_t Port;
+
+	int32_t Valid;
+
+	// Map name, i.e. "SkyCity", default is "Entry".
+	FString Map;
+
+	// Optional place to download Map if client does not possess it
+	FString RedirectURL;
+
+	// Options.
+	TArray<FString> Op;
+
+	// Portal to enter through, default is "".
+	FString Portal;
+};
+
+typedef void* UEngine;
+typedef void* FWorldContext;
+typedef bool(__fastcall *UEngine__LoadMap_t)(UEngine* _this,  FWorldContext* WorldContext, FURL URL, class UPendingNetGame* Pending, FString& Error);
+
+UEngine__LoadMap_t UEngine__LoadMap_original = nullptr;
+
+bool __fastcall UEngine__LoadMap_Hook(UEngine* _this,  FWorldContext* WorldContext, FURL URL, class UPendingNetGame* Pending, FString& Error) {
+    if(narrow(URL.Map).find("RootLevel") != std::string::npos) {
+        URL.Map = L"/Game/Levels/Overland/Overland";
+    }
+    
+    return UEngine__LoadMap_original(_this, WorldContext, URL, Pending, Error);
 }
 
 
@@ -221,13 +318,6 @@ StaticConstructObject_Internal_t StaticConstructObject_Internal_original = nullp
 
 UObject *__fastcall StaticConstructObject_Internal_Hook(const FStaticConstructObjectParameters &Params) {
     auto res = StaticConstructObject_Internal_original(Params);
-    // if (Params.Class && res) {
-    //     auto fullName = get_full_name(res);
-    //     if(fullName.find("Missions") != std::string::npos) {
-    //         Framework::Logging::GetLogger("Hooks")->info("ConstructObject: {}", fullName.c_str());
-    //     }
-    // }
-
     return res;
 }
 
@@ -238,11 +328,11 @@ static InitFunction init([]() {
     GObjectArray             = reinterpret_cast<FUObjectArray *>(Obj_Array_Bytes + *(int32_t *)(Obj_Array_Bytes + 3) + 7);
 
     //NOTE: spawn actor hook
-    auto UWorld__SpawnActor_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 08 FF FF FF 48 81 EC F8 01 00 00 "
-                                                                            "48 8B 05 ? ? ? ? 48 33 C4 48 89 45")
-                                                                  .get_first());
-
+    auto UWorld__SpawnActor_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 08 FF FF FF 48 81 EC F8 01 00 00 48 8B 05 ? ? ? ? 48 33 C4 48 89 45").get_first());
     MH_CreateHook((LPVOID)UWorld__SpawnActor_Addr, &UWorld__SpawnActor_Hook, (LPVOID *)&UWorld__SpawnActor);
+
+    //NOTE: destroy actor
+    UWorld__DestroyActor = reinterpret_cast<UWorld__DestroyActor_t>(hook::pattern("40 53 56 57 41 54 41 55 41 57 48 81 EC 18").get_first());
 
     //NOTE: create static object hook
     auto StaticConstructObject_Internal_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 10 48 89 74 24 18 55 57 41 54 41 56 41 57 48 8D AC 24 50 FF FF FF").get_first());
@@ -253,4 +343,8 @@ static InitFunction init([]() {
     uint8_t *GWorld_Instruction_Bytes = reinterpret_cast<uint8_t *>(GWorld_Scan);
     uint64_t GWorld_Addr              = reinterpret_cast<uint64_t>(GWorld_Instruction_Bytes + *(int32_t *)(GWorld_Instruction_Bytes + 3) + 7);
     GWorld                            = (UWorld **)(GWorld_Addr);
+
+    //NOTE: UEngine::LoadMap hook
+    auto UEngine_LoadMap_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 20 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 A0 FE FF FF 48 81 EC 60 02 00 00 0F").get_first());
+    MH_CreateHook((LPVOID)UEngine_LoadMap_Addr, &UEngine__LoadMap_Hook, (LPVOID *)&UEngine__LoadMap_original);
 });

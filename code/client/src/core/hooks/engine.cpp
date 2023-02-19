@@ -14,8 +14,8 @@ EngineTick__Hook_t EngineTick__Hook_original = nullptr;
 void EngineTick__Hook() {
     EngineTick__Hook_original();
     if (HogwartsMP::Core::gApplication && HogwartsMP::Core::gApplication->IsInitialized()) {
-        HogwartsMP::Core::gApplication->Update();
         Playground_Tick();
+        HogwartsMP::Core::gApplication->Update();
     }
 }
 
