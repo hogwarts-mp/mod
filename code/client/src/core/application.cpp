@@ -127,7 +127,7 @@ namespace HogwartsMP::Core {
             }
 
             gGlobals.localPlayer = localPlayer;
-            Framework::Logging::GetLogger("Application")->info("Found local player at {}", fmt::ptr(localPlayer));
+            Framework::Logging::GetLogger("Application")->info("Found local player at {} (player controller {})", fmt::ptr(localPlayer), fmt::ptr(localPlayer->PlayerController));
         }
 
         // Tick discord instance - Temporary
