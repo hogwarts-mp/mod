@@ -22,7 +22,7 @@
 
 namespace HogwartsMP::Core {
     DevFeatures::DevFeatures() {
-
+        _teleportManager = std::make_shared<UI::TeleportManager>();
     }
 
     void DevFeatures::Init() {
@@ -31,7 +31,9 @@ namespace HogwartsMP::Core {
     }
 
     void DevFeatures::Update() {
-
+        if (_showTeleportManager) {
+            _teleportManager->Update();
+        }
     }
 
     void DevFeatures::Shutdown() {}
@@ -102,6 +104,12 @@ namespace HogwartsMP::Core {
             },
             "quits the game");
         gApplication->_commandProcessor->RegisterCommand(
+            "tele", {},
+            [this](cxxopts::ParseResult &) {
+                ToggleTeleportManager();
+            },
+            "toggle teleport manager");
+        gApplication->_commandProcessor->RegisterCommand(
             "chat", {{"m,msg", "message to send", cxxopts::value<std::string>()->default_value("")}},
             [this](const cxxopts::ParseResult &result) {
                 const auto net = gApplication->GetNetworkingEngine()->GetNetworkClient();
@@ -138,9 +146,15 @@ namespace HogwartsMP::Core {
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("Editors")) {
+                if (ImGui::MenuItem("Teleport Manager")) {
+                    ToggleTeleportManager();
+                }
                 ImGui::EndMenu();
             }
         });
     }
 
+    void DevFeatures::ToggleTeleportManager() {
+        _showTeleportManager ^= 1;
+    }
 } // namespace HogwartsMP::Core

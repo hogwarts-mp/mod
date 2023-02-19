@@ -12,8 +12,15 @@
 #include <string>
 #include <vector>
 
+#include "ui/teleport_manager.h"
+
 namespace HogwartsMP::Core {
     class DevFeatures final {
+      private:
+
+        bool _showTeleportManager {false};
+        std::shared_ptr<UI::TeleportManager> _teleportManager {};
+
       public:
         DevFeatures();
         void Init();
@@ -27,5 +34,7 @@ namespace HogwartsMP::Core {
         void CrashMe();
         void BreakMe();
         void CloseGame();
+
+        void ToggleTeleportManager();
     };
 } // namespace HogwartsMP::Core
