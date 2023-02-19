@@ -5,6 +5,8 @@
 #include "apawn.h"
 #include "acontroller.h"
 
+#include "../camera/aplayercameramanager.h"
+
 #include "../containers/frotator.h"
 #include "../containers/tarray.h"
 #include "../containers/fvector.h"
@@ -13,23 +15,23 @@ namespace SDK {
     class UPlayer;
     class APlayerController: public AController {
        public:
-        UPlayer *Player;                                                      
-        APawn *AcknowledgedPawn;                                              
-        struct UInterpTrackInstDirector *ControllingDirTrackInst;                    
-        struct AHUD *MyHUD;                                                          
-        struct APlayerCameraManager *PlayerCameraManager;                            
-        struct APlayerCameraManager *PlayerCameraManagerClass;                       
-        bool bAutoManageActiveCameraTarget;                                          
-        char pad0[0x3];                                                           
-        FRotator TargetViewRotation;                                          
-        char pad1[0xc];                                                           
-        float SmoothTargetViewRotationSpeed;                                         
-        char pad2[0x8];                                                           
-        TArray<AActor *> HiddenActors;                                 
-        TArray<class UPrimitiveComponent> HiddenPrimitiveComponents;         
+        UPlayer *Player;                                                                    // 02C0 - 02C8                                                 
+        APawn *AcknowledgedPawn;                                                            // 02C8 - 02D0                                              
+        struct UInterpTrackInstDirector *ControllingDirTrackInst;                           // 02D0 - 02D8
+        struct AHUD *MyHUD;                                                                 // 02D8 - 02E0
+        APlayerCameraManager *PlayerCameraManager;                                          // 02E0 - 02E8
+        APlayerCameraManager *PlayerCameraManagerClass;                                     // 02E8 - 02F0
+        bool bAutoManageActiveCameraTarget;                                                 // 02F0 - 02F1
+        char pad0[0x3];                                                                     // 02F1 - 02F4
+        FRotator TargetViewRotation;                                                        // 02F4 - 0300                                                       
+        char pad1[0xc];                                                                     // 0300 - 030C
+        float SmoothTargetViewRotationSpeed;                                                // 030C - 0310
+        char pad2[0x8];                                                                     // 0310 - 0318
+        TArray<AActor *> HiddenActors;                                                      // 0318 - 0320
+        TArray<class UPrimitiveComponent> HiddenPrimitiveComponents;                        // 0320 - 0328
         char pad3[0x4];                                                           
         float LastSpectatorStateSynchTime;                                           
-        struct FVector LastSpectatorSyncLocation;                                    
+        FVector LastSpectatorSyncLocation;                                    
         FRotator LastSpectatorSyncRotation;                                   
         int32_t ClientCap;                                                           
         char pad4[0x4];                                                           
