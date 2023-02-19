@@ -7,11 +7,12 @@
 #include <world/modules/base.hpp>
 #include <utils/interpolator.h>
 
+#include <sdk/entities/uplayer.h>
+
 namespace HogwartsMP::Core::Modules {
     struct Human {
         struct Tracking {
-            // todo
-            char _unused;
+            SDK::UPlayer *player = nullptr;
         };
 
         struct Interpolated {

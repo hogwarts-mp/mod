@@ -29,22 +29,24 @@ namespace HogwartsMP::Core::Modules {
 
         world.system<Tracking, Shared::Modules::HumanSync::UpdateData, LocalPlayer, Framework::World::Modules::Base::Transform>("UpdateLocalPlayer")
             .each([](flecs::entity e, Tracking &tracking, Shared::Modules::HumanSync::UpdateData &metadata, LocalPlayer &lp, Framework::World::Modules::Base::Transform &tr) {
-                // if (tracking.human) {
-                    // SDK::ue::sys::math::C_Vector newPos = tracking.human->GetPos();
-                    // SDK::ue::sys::math::C_Quat newRot   = tracking.human->GetRot();
-                    // tr.pos                              = {newPos.x, newPos.y, newPos.z};
-                    // tr.rot                              = {newRot.w, newRot.x, newRot.y, newRot.z};
-
-                    // Store the required metadata for onfoot sync
-                    // todo
-                // }
+                if (tracking.player) {
+                    const auto rootComponent = tracking.player->PlayerController->Pawn->RootComponent;
+                    tr.pos = {rootComponent->RelativeLocation.X, rootComponent->RelativeLocation.Y, rootComponent->RelativeLocation.Z};
+                    // tr.rot = {rootComponent->RelativeRotation.W, rootComponent->RelativeRotation.X, rootComponent->RelativeRotation.Y, rootComponent->RelativeRotation.Z};
+                }
             });
 
         world.system<Tracking, Interpolated>("UpdateRemoteHuman").each([](flecs::entity e, Tracking &tracking, Interpolated &interpolated) {
             if (e.get<LocalPlayer>() == nullptr) {
+                const auto rootComponent = tracking.player->PlayerController->Pawn->RootComponent;
                 auto updateData = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
                 auto humanData  = e.get_mut<HumanData>();
-                // todo
+                const auto humanPos = rootComponent->RelativeLocation;
+                // const auto humanRot = rootComponent->RelativeRotation;
+                const auto newPos   = interpolated.interpolator.GetPosition()->UpdateTargetValue({humanPos.X, humanPos.Y, humanPos.Z});
+                // const auto newRot   = interpolated.interpolator.GetRotation()->UpdateTargetValue({humanRot.W, humanRot.X, humanRot.Y, humanRot.Z});
+                rootComponent->RelativeLocation = {newPos.x, newPos.y, newPos.z};
+                // rootComponent->RelativeRotation = {newRot.w, newRot.x, newRot.y, newRot.z};
             }
         });
     }
@@ -63,12 +65,30 @@ namespace HogwartsMP::Core::Modules {
     }
 
     void Human::SetupLocalPlayer(Application *, flecs::entity e) {
+        e.world().defer_begin();
         auto trackingData   = e.get_mut<Core::Modules::Human::Tracking>();
 
         e.add<Shared::Modules::HumanSync::UpdateData>();
         e.add<Core::Modules::Human::LocalPlayer>();
         e.add<HumanData>();
         e.set<Shared::Modules::Mod::EntityKind>({Shared::Modules::Mod::MOD_PLAYER});
+
+        const auto localPlayer = Core::gGlobals.localPlayer;
+
+        if (!localPlayer->PlayerController->Pawn) {
+            Framework::Logging::GetLogger("Human")->error("No pawn found.");
+            Core::gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
+            return;
+        }
+
+        const auto rootComponent = localPlayer->PlayerController->Pawn->RootComponent;
+        if (!rootComponent) {
+            Framework::Logging::GetLogger("Human")->error("No pawn root component");
+            Core::gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
+            return;
+        }
+
+        trackingData->player = localPlayer;
 
         const auto es            = e.get_mut<Framework::World::Modules::Base::Streamable>();
         es->modEvents.updateProc = [](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
@@ -80,6 +100,7 @@ namespace HogwartsMP::Core::Modules {
             peer->Send(humanUpdate, guid);
             return true;
         };
+        e.world().defer_end();
     }
 
     void Human::Update(flecs::entity e) {
@@ -90,25 +111,20 @@ namespace HogwartsMP::Core::Modules {
 
         auto updateData                    = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
         auto humanData                     = e.get_mut<HumanData>();
-        // todo
+        auto rootComponent = trackingData->player->PlayerController->Pawn->RootComponent;
 
         // Update basic data
         const auto tr = e.get<Framework::World::Modules::Base::Transform>();
         auto interp   = e.get_mut<Interpolated>();
         if (interp) {
-            // const auto humanPos = trackingData->human->GetPos();
+            const auto humanPos = rootComponent->RelativeLocation;
             // const auto humanRot = trackingData->human->GetRot();
-            // interp->interpolator.GetPosition()->SetTargetValue({humanPos.x, humanPos.y, humanPos.z}, tr->pos, HogwartsMP::Core::gApplication->GetTickInterval());
+            interp->interpolator.GetPosition()->SetTargetValue({humanPos.X, humanPos.Y, humanPos.Z}, tr->pos, HogwartsMP::Core::gApplication->GetTickInterval());
             // interp->interpolator.GetRotation()->SetTargetValue({humanRot.w, humanRot.x, humanRot.y, humanRot.z}, tr->rot, HogwartsMP::Core::gApplication->GetTickInterval());
         }
         else {
-            // SDK::ue::sys::math::C_Vector newPos    = {tr->pos.x, tr->pos.y, tr->pos.z};
-            // SDK::ue::sys::math::C_Quat newRot      = {tr->rot.x, tr->rot.y, tr->rot.z, tr->rot.w};
-            // SDK::ue::sys::math::C_Matrix transform = {};
-            // transform.Identity();
-            // transform.SetRot(newRot);
-            // transform.SetPos(newPos);
-            // trackingData->human->SetTransform(transform);
+            rootComponent->RelativeLocation = {tr->pos.x, tr->pos.y, tr->pos.z};
+            // rootComponent->RelativeRotation = {tr->rot.w, tr->rot.x, tr->rot.y, tr->rot.z};
         }
 
         // todo additional sync data
