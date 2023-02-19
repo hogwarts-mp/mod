@@ -4,6 +4,8 @@
 #include "apawn.h"
 #include "acharacter.h"
 
+#include "../components/uscenecomponent.h"
+
 namespace SDK {
     class AController: public AActor {
       public:
@@ -12,10 +14,10 @@ namespace SDK {
         char pad1[0x8];               
         char OnInstigatedAnyDamage[0x10];
         char StateName[0x08];
-        APawn *Pawn;                        
+        APawn *Pawn;                                // 0278 - 0280           
         char pad2[0x8];                         
         ACharacter *Character;              
-        class USceneComponent *TransformComponent;
+        USceneComponent *TransformComponent;
         char pad3[0x18];                        
         char ControlRotation[0x0c];
         char bAttachToPawn : 1;

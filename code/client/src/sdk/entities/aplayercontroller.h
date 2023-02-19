@@ -11,7 +11,8 @@
 
 namespace SDK {
     class UPlayer;
-    struct APlayerController: AController {
+    class APlayerController: public AController {
+       public:
         UPlayer *Player;                                                      
         APawn *AcknowledgedPawn;                                              
         struct UInterpTrackInstDirector *ControllingDirTrackInst;                    

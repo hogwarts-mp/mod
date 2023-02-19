@@ -41,7 +41,5 @@ namespace SDK {
         int32_t JumpCurrentCountPreJump;                    
         char pad3[0x8];                                  
         char otherSize[0x168];                              
-
-        void Jump();
     };
 }

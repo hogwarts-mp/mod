@@ -3,8 +3,9 @@
 #include "aactor.h"
 
 namespace SDK {
-    class APawn: public AActor {
+    class APawn {
       public:
-        unsigned char pad0[0x60];
+        char pad0[0x158];               // 0000 - 0158
+        USceneComponent *RootComponent; // 0158 - 0160
     };
 }
