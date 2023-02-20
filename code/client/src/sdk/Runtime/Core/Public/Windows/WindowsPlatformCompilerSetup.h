@@ -10,7 +10,7 @@
 // Future-proofing the min version check so we keep bumping it whenever we upgrade.
 //
 #if defined(_MSC_VER) && _MSC_VER > 1929 
-	#pragma message("Detected compiler newer than Visual Studio 2019, please update min version checking in WindowsPlatformCompilerSetup.h")
+	// #pragma message("Detected compiler newer than Visual Studio 2019, please update min version checking in WindowsPlatformCompilerSetup.h")
 #endif
 
 //

@@ -55,7 +55,7 @@ namespace HogwartsMP::Core::UI {
         fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void*)&fastTravelmanagerInstance);
 
         if(fastTravelmanagerInstance) {
-            auto wideTeleportLocation = Framework::Utils::StringUtils::NormalToWideDirect(name);
+            auto wideTeleportLocation = Framework::Utils::StringUtils::NormalToWide(name);
             FString gname(wideTeleportLocation.c_str());
             Framework::Logging::GetLogger("TeleportManager")->info("Teleporting to {}, instance: {} !", name.c_str(), fmt::ptr(fastTravelmanagerInstance));
 

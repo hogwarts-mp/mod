@@ -217,7 +217,7 @@ void Playground_Tick() {
             fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void*)&fastTravelmanagerInsance);
 
             if(fastTravelmanagerInsance) {
-                auto wideTeleportLocation = NormalToWideDirect(teleportLocation);
+                auto wideTeleportLocation = NormalToWide(teleportLocation);
                 FString name(wideTeleportLocation.c_str());
                 Framework::Logging::GetLogger("Hooks")->info("Teleporting to {}, instance: {} !", teleportLocation, (void*)fastTravelmanagerInsance);
 
