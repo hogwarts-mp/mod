@@ -66,6 +66,10 @@ namespace HogwartsMP::Core {
             return _console;
         }
 
+        DevFeatures &GetDevFeatures() {
+            return _devFeatures;
+        }
+
         std::shared_ptr<UI::Chat> GetChat() const {
             return _chat;
         }

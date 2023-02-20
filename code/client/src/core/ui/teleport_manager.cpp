@@ -40,22 +40,27 @@ namespace HogwartsMP::Core::UI {
         {
             ImGui::ListBox("Locations", &selectedLocation, teleportLocations, IM_ARRAYSIZE(teleportLocations), 10);
             if (ImGui::Button("Teleport")) {
-                UClass* fastTravelManager = (UClass*)find_uobject("Class /Script/Phoenix.FastTravelManager");
-                UFunction* fastTravelManagerGetter = (UFunction*)find_uobject("Function /Script/Phoenix.FastTravelManager.Get");
-
-                UClass* fastTravelmanagerInsance{nullptr};
-                fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void*)&fastTravelmanagerInsance);
-
-                if(fastTravelmanagerInsance) {
-                    auto wideTeleportLocation = Framework::Utils::StringUtils::NormalToWideDirect(teleportLocations[selectedLocation]);
-                    FString name(wideTeleportLocation.c_str());
-                    Framework::Logging::GetLogger("Hooks")->info("Teleporting to {}, instance: {} !", teleportLocations[selectedLocation], (void*)fastTravelmanagerInsance);
-
-                    UFunction* fastTravelTo = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
-                    fastTravelmanagerInsance->ProcessEvent(fastTravelTo, (void*)&name);
-                }
+                std::string name = teleportLocations[selectedLocation];
+                TeleportTo(name);
             }
         }
         ImGui::End();
+    }
+
+    void TeleportManager::TeleportTo(const std::string &name) {
+        UClass* fastTravelManager = (UClass*)find_uobject("Class /Script/Phoenix.FastTravelManager");
+        UFunction* fastTravelManagerGetter = (UFunction*)find_uobject("Function /Script/Phoenix.FastTravelManager.Get");
+
+        UClass* fastTravelmanagerInstance{nullptr};
+        fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void*)&fastTravelmanagerInstance);
+
+        if(fastTravelmanagerInstance) {
+            auto wideTeleportLocation = Framework::Utils::StringUtils::NormalToWideDirect(name);
+            FString gname(wideTeleportLocation.c_str());
+            Framework::Logging::GetLogger("TeleportManager")->info("Teleporting to {}, instance: {} !", name.c_str(), fmt::ptr(fastTravelmanagerInstance));
+
+            UFunction* fastTravelTo = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
+            fastTravelmanagerInstance->ProcessEvent(fastTravelTo, (void*)&gname);
+        }
     }
 } // namespace HogwartsMP::Core::UI

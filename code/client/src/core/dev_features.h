@@ -27,6 +27,10 @@ namespace HogwartsMP::Core {
         void Update();
         void Shutdown();
 
+        std::shared_ptr<UI::TeleportManager> GetTeleportManager() const {
+            return _teleportManager;
+        }
+
       private:
         void SetupCommands();
         void SetupMenuBar();
