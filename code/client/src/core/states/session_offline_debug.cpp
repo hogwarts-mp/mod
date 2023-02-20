@@ -27,9 +27,6 @@ namespace HogwartsMP::Core::States {
 
         // Give back controls$
         // TODO
-
-        Core::gApplication->GetDevFeatures().GetTeleportManager()->TeleportTo("Hogwarts");
-
         return true;
     }
 
