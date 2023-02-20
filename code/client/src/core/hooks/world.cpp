@@ -13,7 +13,7 @@ class FObjectInitializer;
 typedef void *(__fastcall *UWorld__UWorld_t)(void *, const FObjectInitializer &);
 UWorld__UWorld_t UWorld__UWorld_original = nullptr;
 void *UWorld__UWorld(void *pThis, const FObjectInitializer &objectInitialiser) {
-    Framework::Logging::GetLogger("Hooks")->debug("Uworld::UWorld ({})", fmt::ptr(pThis));
+    // Framework::Logging::GetLogger("Hooks")->trace("Uworld::UWorld ({})", fmt::ptr(pThis));
     return UWorld__UWorld_original(pThis, objectInitialiser);
 }
 
