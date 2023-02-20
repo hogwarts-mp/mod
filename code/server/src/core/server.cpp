@@ -1,6 +1,7 @@
 #include "server.h"
 
 #include "shared/modules/human_sync.hpp"
+#include "shared/modules/mod.hpp"
 
 #include "modules/human.h"
 
@@ -16,10 +17,20 @@ namespace HogwartsMP {
         InitNetworkingMessages();
 
         // Setup ECS modules (sync)
+        GetWorldEngine()->GetWorld()->import<Shared::Modules::Mod>();
         GetWorldEngine()->GetWorld()->import<Shared::Modules::HumanSync>();
 
         // Setup ECS modules
         GetWorldEngine()->GetWorld()->import <Core::Modules::Human>();
+
+        // Setup specific components - default values
+        auto weather = GetWorldEngine()->GetWorld()->get_mut<Shared::Modules::Mod::Weather>();
+        weather->season = Shared::Modules::Mod::SeasonKind::SEASON_SUMMER;
+        weather->weather = "Clear";
+        weather->timeHour = 11;
+        weather->timeMinute = 0;
+        weather->dateDay = 12;
+        weather->dateMonth = 6;
     }
 
     void Server::PostUpdate() {}

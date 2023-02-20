@@ -25,6 +25,10 @@
 
 #include "external/imgui/widgets/corner_text.h"
 
+#include "shared/modules/mod.hpp"
+
+#include "shared/rpc/set_weather.h"
+
 #include "shared/version.h"
 
 #include "../sdk/game/ulevel.h"
@@ -220,6 +224,13 @@ namespace HogwartsMP::Core {
             switch (ekind->kind) {
                 case Shared::Modules::Mod::MOD_PLAYER: Core::Modules::Human::UpdateTransform(e); break;
             }
+        });
+        net->RegisterRPC<Shared::RPC::SetWeather>([this](SLNet::RakNetGUID guid, Shared::RPC::SetWeather *msg) {
+            if (!msg->Valid()) {
+                return;
+            }
+
+            // todo call sdk methods to set weather
         });
     }
 

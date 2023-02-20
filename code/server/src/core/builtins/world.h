@@ -6,6 +6,8 @@
 #include "player.h"
 
 #include "shared/rpc/chat_message.h"
+#include "shared/rpc/set_weather.h"
+#include "shared/modules/mod.hpp"
 
 #include "core_modules.h"
 
@@ -20,6 +22,40 @@ namespace HogwartsMP::Scripting {
                     return;
                 FW_SEND_COMPONENT_RPC_TO(Shared::RPC::ChatMessage, SLNet::RakNetGUID(str->guid), message);
             }
+        }
+
+        static void SetWeather(std::string weatherSetName) {
+            auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
+
+            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            weather->weather = weatherSetName;
+            FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
+        }
+
+        static void SetTimeofDay(uint8_t timeHour, uint8_t timeMinute) {
+            auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
+
+            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            weather->timeHour = timeHour;
+            weather->timeMinute = timeMinute;
+            FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
+        }
+
+        static void SetDate(uint8_t day, uint8_t month) {
+            auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
+
+            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            weather->dateDay = day;
+            weather->dateMonth = month;
+            FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
+        }
+
+        static void SetSeason(Shared::Modules::Mod::SeasonKind season) {
+            auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
+
+            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            weather->season = season;
+            FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
         }
 
         static void BroadcastMessage(std::string message) {
@@ -41,6 +77,13 @@ namespace HogwartsMP::Scripting {
         }
 
         static void Register(v8::Isolate *isolate, v8pp::module *rootModule) {
+            v8pp::module environment(isolate);
+            environment.function("setWeather", &World::SetWeather);
+            environment.function("setTime", &World::SetTimeofDay);
+            environment.function("setDate", &World::SetDate);
+            environment.function("setSeason", &World::SetSeason);
+            rootModule->submodule("Environment", environment);
+
             rootModule->function("sendChatMessage", &World::SendChatMessage);
             rootModule->function("broadcastMessage", &World::BroadcastMessage);
         }
