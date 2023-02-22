@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "ui/teleport_manager.h"
+#include "ui/season_manager.h"
 
 namespace HogwartsMP::Core {
     class DevFeatures final {
@@ -20,6 +21,7 @@ namespace HogwartsMP::Core {
 
         bool _showTeleportManager {false};
         std::shared_ptr<UI::TeleportManager> _teleportManager {};
+        std::shared_ptr<UI::SeasonManager> _seasonManager {};
 
       public:
         DevFeatures();
@@ -29,6 +31,10 @@ namespace HogwartsMP::Core {
 
         std::shared_ptr<UI::TeleportManager> GetTeleportManager() const {
             return _teleportManager;
+        }
+
+        std::shared_ptr<UI::SeasonManager> GetSeasonManager() const {
+            return _seasonManager;
         }
 
       private:
