@@ -1,0 +1,15 @@
+# devtools
+.vs*
+*.vcxproj*
+*.sln*
+
+# cmake
+cmake_install.cmake
+
+# build
+x64
+build
+CMakeFiles
+*.lib
+*.exp
+*.dir
