@@ -37,6 +37,7 @@ set(HOGWARTSMP_SDK_FILES
     src/sdk/containers/tuobjectarray.cpp
     src/sdk/entities/acharacter.cpp
     src/sdk/types/uobject.cpp
+    src/sdk/game/seasonchanger.cpp
 )
 
 add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} ${HOGWARTSMP_SDK_FILES} "src/core/ue4_impl.cpp")
