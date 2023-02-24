@@ -124,15 +124,6 @@ namespace HogwartsMP::Core {
             },
             "sends a chat message");
 
-        // @TODO metrix: SetWeather
-        gApplication->_commandProcessor->RegisterCommand(
-            "season", {{"s,set", "set season", cxxopts::value<std::string>()->default_value("")}},
-            [this](const cxxopts::ParseResult &result) {
-                Framework::Logging::GetLogger("Debug")->info("Try to set random season");
-            },
-            "set weather season"
-        );
-
         gApplication->_commandProcessor->RegisterCommand(
             "disconnect", {},
             [this](const cxxopts::ParseResult &) {
@@ -140,40 +131,6 @@ namespace HogwartsMP::Core {
             },
             "disconnect from server");
     }
-
-    /**
-     * Enum Engine.ESeasonEnum
-     */
-    enum class ESeasonEnum : uint8_t {
-        Season_Invalid = 0,
-        Season_Fall = 1,
-        Season_Winter = 2,
-        Season_Spring = 3,
-        Season_Summer = 4,
-        Season_MAX = 5
-    };
-
-    /**
-     * Function Phoenix.SeasonChanger.SetCurrentSeason
-     */
-    struct USeasonChanger_SetCurrentSeason_Params {
-    public:
-        ESeasonEnum NewSeason; // 0x0000(0x0001)  (Parm, ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
-    };
-
-    class USeasonChanger: public UObject {
-    public:
-        void SetCurrentSeason(ESeasonEnum NewSeason) {
-            UFunction *fn = SDK::UObject::FindObject<UFunction>("Function Phoenix.SeasonChanger.SetCurrentSeason");
-            if (!fn)
-                return;
-
-            auto flags_ = fn->FunctionFlags;
-            USeasonChanger_SetCurrentSeason_Params params{NewSeason};
-            this->ProcessEvent(fn, &params);
-            fn->FunctionFlags = flags_;
-        }
-    };
 
     void DevFeatures::SetupMenuBar() {
         gApplication->_console->RegisterMenuBarDrawer([this]() {
@@ -192,6 +149,9 @@ namespace HogwartsMP::Core {
                 }
                 if (ImGui::MenuItem("Random Weather")) {
                     GetSeasonManager()->SetRandomSeason();
+                }
+                if (ImGui::MenuItem("Time forward")) {
+                    GetSeasonManager()->AdvanceHours(6);
                 }
                 ImGui::EndMenu();
             }

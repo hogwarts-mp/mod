@@ -1,16 +1,14 @@
 #pragma once
 
-#include "utils/safe_win32.h"
 #include <vector>
-#include <sdk/Runtime/CoreUObject/Public/UObject/Class.h>
 
-class UClass;
-class UFunction;
-class UObjectBase;
-
-UObjectBase *find_uobject(const char *obj_full_name);
+#include <sdk/types/uclass.h>
 
 namespace SDK {
+    class UClass;
+    class UFunction;
+    class UObjectBase;
+
     enum class ESeasonEnum : unsigned char {
         Season_Invalid = 0,
         Season_Fall = 1,
@@ -25,7 +23,18 @@ namespace SDK {
         ESeasonEnum NewSeason;
     };
 
-    ::UClass *SeasonChanger();
-    ::UFunction *SeasonChanger_SetCurrentSeason();
+    UClass *SeasonChanger();
+    UFunction *SeasonChanger_SetCurrentSeason();
     void SetSeason(ESeasonEnum season);
+
+    UClass *UScheduler(); 
+    UFunction *UScheduler_AdvanceHours(); 
+ 
+    struct UScheduler_AdvanceHours_Params 
+    { 
+    public: 
+        int InHours; 
+    }; 
+ 
+    void AdvanceHours(int hours); 
 }
