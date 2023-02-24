@@ -27,7 +27,7 @@ namespace SDK {
     UFunction *SeasonChanger_SetCurrentSeason();
     void SetSeason(ESeasonEnum season);
 
-    UClass *UScheduler(); 
+    std::vector<SDK::UClass *> USchedulers(); 
     UFunction *UScheduler_AdvanceHours(); 
  
     struct UScheduler_AdvanceHours_Params 

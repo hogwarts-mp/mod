@@ -32,12 +32,13 @@ void SDK::SetSeason(ESeasonEnum season) {
     seasonChanger->ProcessEvent(setCurrentSeason, &params);
 }
 
-SDK::UClass *SDK::UScheduler() {
-    auto schedulers = find_uobjects("Class /Script/GameScheduler.Scheduler");
-    if (schedulers.empty()) {
-        return nullptr;
+std::vector<SDK::UClass *> SDK::USchedulers() {
+    std::vector<SDK::UClass *> schedulers{};
+    auto objects = find_uobjects("Class /Script/GameScheduler.Scheduler");
+    for (const auto object : objects) {
+        schedulers.push_back(reinterpret_cast<SDK::UClass *>(object));
     }
-    return (SDK::UClass *)schedulers.back();
+    return schedulers;
 }
 
 SDK::UFunction *SDK::UScheduler_AdvanceHours() {
@@ -49,11 +50,13 @@ SDK::UFunction *SDK::UScheduler_AdvanceHours() {
 }
 
 void SDK::AdvanceHours(int hours) {
-    auto scheduler = UScheduler();
+    auto schedulers = USchedulers();
     auto advanceHours = UScheduler_AdvanceHours();
-    if (scheduler || !advanceHours)
+    if (schedulers.empty() || !advanceHours)
         return;
 
-    UScheduler_AdvanceHours_Params params{hours};
-    scheduler->ProcessEvent(advanceHours, &params);
+    for (auto scheduler : schedulers) {
+        UScheduler_AdvanceHours_Params params{hours};
+        scheduler->ProcessEvent(advanceHours, &params);
+    }
 }
