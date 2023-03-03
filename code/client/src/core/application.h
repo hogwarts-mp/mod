@@ -20,6 +20,7 @@
 #include "UObject/UnrealType.h"
 
 #include "sdk/entities/ulocalplayer.h"
+#include "sdk/entities/a_biped_player.h"
 #include "sdk/game/ugameinstance.h"
 #include "sdk/game/uworld.h"
 
@@ -88,6 +89,7 @@ namespace HogwartsMP::Core {
         ID3D12Device *device                                                      = nullptr;
         FUObjectArray *objectArray                                                = {nullptr};
         SDK::ULocalPlayer *localPlayer                                            = nullptr;
+        SDK::ABiped_Player *localBipedPlayer                                      = nullptr;
         SDK::UWorld **world                                                             = nullptr;
     };
 
