@@ -56,10 +56,10 @@ Actually, the mod isn't playable. It offers a stable and safe playground to expe
 
 It does not cover (yet):
 
-- [] Entity spawning (we had a prototype with cats but not working for players atm), we need to reverse StudentManager
-- [] Gear synchronization
-- [] World boundaries removal
-- [] Web rendering for UIs
+- [ ] Entity spawning (we had a prototype with cats but not working for players atm), we need to reverse StudentManager
+- [ ] Gear synchronization
+- [ ] World boundaries removal
+- [ ] Web rendering for UIs
 
 
 ## License
