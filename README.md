@@ -52,7 +52,7 @@ Actually, the mod isn't playable. It offers a stable and safe playground to expe
 - [x] Weather / time management (networked and script-exposed)
 - [x] Battle-tested networking code with player entity basic information replication
 - [x] Hooks
-- [x] NodeJS scripting-enabled dedicated server
+- [x] NodeJS scripting-enabled dedicated server
 
 It does not cover (yet):
 
