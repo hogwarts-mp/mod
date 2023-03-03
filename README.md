@@ -58,6 +58,8 @@ It does not cover (yet):
 
 - [ ] Entity spawning (we had a prototype with cats but not working for players atm), we need to reverse StudentManager
 - [ ] Gear synchronization
+- [ ] Spell casting synchronization
+- [ ] Broomstick synchronization
 - [ ] World boundaries removal
 - [ ] Web rendering for UIs
 
