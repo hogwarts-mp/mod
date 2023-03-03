@@ -15,14 +15,17 @@
 
 #include <cppfs/FileHandle.h>
 #include <cppfs/fs.h>
+#include <shared/modules/mod.hpp>
 
 #include "shared/rpc/chat_message.h"
+#include "shared/rpc/set_weather.h"
 
 #include "modules/human.h"
 
 namespace HogwartsMP::Core {
     DevFeatures::DevFeatures() {
         _teleportManager = std::make_shared<UI::TeleportManager>();
+        _seasonManager = std::make_shared<UI::SeasonManager>();
     }
 
     void DevFeatures::Init() {
@@ -120,6 +123,7 @@ namespace HogwartsMP::Core {
                 }
             },
             "sends a chat message");
+
         gApplication->_commandProcessor->RegisterCommand(
             "disconnect", {},
             [this](const cxxopts::ParseResult &) {
@@ -142,6 +146,12 @@ namespace HogwartsMP::Core {
                 }
                 if (ImGui::MenuItem("Exit Game")) {
                     CloseGame();
+                }
+                if (ImGui::MenuItem("Random Weather")) {
+                    GetSeasonManager()->SetRandomSeason();
+                }
+                if (ImGui::MenuItem("Time forward")) {
+                    GetSeasonManager()->AdvanceHours(6);
                 }
                 ImGui::EndMenu();
             }

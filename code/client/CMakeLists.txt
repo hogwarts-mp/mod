@@ -26,6 +26,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/ui/chat.cpp
     src/core/ui/console.cpp
     src/core/ui/teleport_manager.cpp
+    src/core/ui/season_manager.cpp
 
     src/game/game_input.cpp
     ${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp
@@ -36,6 +37,7 @@ set(HOGWARTSMP_SDK_FILES
     src/sdk/containers/tuobjectarray.cpp
     src/sdk/entities/acharacter.cpp
     src/sdk/types/uobject.cpp
+    src/sdk/game/seasonchanger.cpp
 )
 
 add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} ${HOGWARTSMP_SDK_FILES} "src/core/ue4_impl.cpp")

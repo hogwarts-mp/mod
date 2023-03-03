@@ -33,7 +33,7 @@ namespace SDK {
                     continue;
 
                 if (object->GetFullName() == name)
-                    return static_cast<T *>(object);
+                    return reinterpret_cast<T *>(object);
             }
             return nullptr;
         }

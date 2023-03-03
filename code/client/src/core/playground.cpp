@@ -14,13 +14,13 @@
 #include <utils/string_utils.h>
 #include <imgui.h>
 
-static FUObjectArray *GObjectArray {nullptr};
+static FUObjectArray *GObjectArray{nullptr};
 
 std::string narrow_(std::wstring_view str) {
     auto length = WideCharToMultiByte(CP_UTF8, 0, str.data(), (int)str.length(), nullptr, 0, nullptr, nullptr);
-    std::string narrowStr {};
+    std::string narrowStr{};
 
-    narrowStr.resize(length); 
+    narrowStr.resize(length);
     WideCharToMultiByte(CP_UTF8, 0, str.data(), (int)str.length(), (LPSTR)narrowStr.c_str(), length, nullptr, nullptr);
 
     return narrowStr;
@@ -52,7 +52,7 @@ std::string get_full_name(UObjectBase *obj) {
 }
 
 UObjectBase *find_uobject(const char *obj_full_name) {
-    static std::unordered_map<std::string, UObjectBase *> obj_map {};
+    static std::unordered_map<std::string, UObjectBase *> obj_map{};
     if (auto search = obj_map.find(obj_full_name); search != obj_map.end()) {
         return search->second;
     }
@@ -70,6 +70,25 @@ UObjectBase *find_uobject(const char *obj_full_name) {
     }
 
     return nullptr;
+}
+
+std::vector<UObjectBase *> find_uobjects(const char *obj_full_name) {
+    std::vector<UObjectBase *> objects{};
+
+    static std::unordered_map<std::string, UObjectBase *> obj_map{};
+
+    for (auto i = 0; i < GObjectArray->GetObjectArrayNum(); ++i) {
+        if (auto obj_item = GObjectArray->IndexToObject(i)) {
+            if (auto obj_base = obj_item->Object) {
+                auto full_name = get_full_name(obj_base);
+                if (full_name == obj_full_name) {
+                    objects.push_back(obj_base);
+                }
+            }
+        }
+    }
+
+    return objects;
 }
 
 enum class ESpawnActorCollisionHandlingMethod : uint8_t {
@@ -125,14 +144,14 @@ struct FActorSpawnParameters {
     /** Method for resolving collisions at the spawn point. Undefined means no override, use the actor's setting. */
     ESpawnActorCollisionHandlingMethod SpawnCollisionHandlingOverride;
 
-  private:
+private:
     friend class UPackageMapClient;
 
     /* Is the actor remotely owned. This should only be set true by the package map when it is creating an actor on a
      * client that was replicated from the server. */
     uint8_t bRemoteOwned : 1;
 
-  public:
+public:
     bool IsRemoteOwned() const {
         return bRemoteOwned;
     }
@@ -186,7 +205,7 @@ struct FActorSpawnParameters {
 typedef AActor *(__fastcall *UWorld__SpawnActor_t)(UWorld *world, UClass *Class, FTransform const *UserTransformPtr, const FActorSpawnParameters &SpawnParameters);
 UWorld__SpawnActor_t UWorld__SpawnActor = nullptr;
 
-typedef bool *(__fastcall *UWorld__DestroyActor_t)(UWorld *world, AActor* ThisActor, bool bNetForce, bool bShouldModifyLevel );
+typedef bool *(__fastcall *UWorld__DestroyActor_t)(UWorld *world, AActor *ThisActor, bool bNetForce, bool bShouldModifyLevel);
 UWorld__DestroyActor_t UWorld__DestroyActor = nullptr;
 
 UWorld **GWorld = nullptr;
@@ -194,41 +213,41 @@ UWorld **GWorld = nullptr;
 using namespace Framework::Utils::StringUtils;
 
 void Playground_Tick() {
-    static AActor* lastActor = nullptr;
+    static AActor *lastActor = nullptr;
 
     static char teleportLocation[250] = "FT_HW_TrophyRoom";
     static bool doTeleport = false;
 
     static char spawnObject[250] = "BlueprintGeneratedClass /Game/Pawn/NPC/Creature/GreyCat/BP_GreyCat_Creature.BP_GreyCat_Creature_C";
     static bool doSpawn = false;
-    
-    static std::vector<AActor*> spawnedActors;
+
+    static std::vector<AActor *> spawnedActors;
 
     HogwartsMP::Core::gApplication->GetImGUI()->PushWidget([&]() {
         ImGui::Begin("Playground");
 
         ImGui::Separator();
         ImGui::InputText("Location", teleportLocation, 250);
-        if(ImGui::Button("Teleport")) {
-            UClass* fastTravelManager = (UClass*)find_uobject("Class /Script/Phoenix.FastTravelManager");
-            UFunction* fastTravelManagerGetter = (UFunction*)find_uobject("Function /Script/Phoenix.FastTravelManager.Get");
+        if (ImGui::Button("Teleport")) {
+            UClass *fastTravelManager = (UClass *)find_uobject("Class /Script/Phoenix.FastTravelManager");
+            UFunction *fastTravelManagerGetter = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.Get");
 
-            UClass* fastTravelmanagerInsance{nullptr};
-            fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void*)&fastTravelmanagerInsance);
+            UClass *fastTravelmanagerInsance{nullptr};
+            fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void *)&fastTravelmanagerInsance);
 
-            if(fastTravelmanagerInsance) {
+            if (fastTravelmanagerInsance) {
                 auto wideTeleportLocation = NormalToWide(teleportLocation);
                 FString name(wideTeleportLocation.c_str());
-                Framework::Logging::GetLogger("Hooks")->info("Teleporting to {}, instance: {} !", teleportLocation, (void*)fastTravelmanagerInsance);
+                Framework::Logging::GetLogger("Hooks")->info("Teleporting to {}, instance: {} !", teleportLocation, (void *)fastTravelmanagerInsance);
 
-                UFunction* fastTravelTo = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
-                fastTravelmanagerInsance->ProcessEvent(fastTravelTo, (void*)&name);
+                UFunction *fastTravelTo = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
+                fastTravelmanagerInsance->ProcessEvent(fastTravelTo, (void *)&name);
             }
         }
 
         ImGui::Separator();
         ImGui::InputText("UObject name", spawnObject, 250);
-        if(ImGui::Button("Spawn Actor")) {
+        if (ImGui::Button("Spawn Actor")) {
             auto *foundObject = (UClass *)find_uobject(spawnObject);
             if (!foundObject) {
                 Framework::Logging::GetLogger("Hooks")->info("Unable to find object !");
@@ -238,26 +257,26 @@ void Playground_Tick() {
 
             Framework::Logging::GetLogger("Hooks")->info("Found UObject: {}", narrow(foundObject->GetFName().ToString()).c_str());
 
-            FTransform transform {};
-            FVector pos = { 351002.25f, -463037.25f, -85707.94531f };
+            FTransform transform{};
+            FVector pos = {351002.25f, -463037.25f, -85707.94531f};
             transform.SetTranslation(pos);
 
-            FActorSpawnParameters spawnParams {};
+            FActorSpawnParameters spawnParams{};
             spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-   
+
             lastActor = UWorld__SpawnActor(*GWorld, foundObject, &transform, spawnParams);
-            if(lastActor != nullptr) {
+            if (lastActor != nullptr) {
                 spawnedActors.push_back(lastActor);
             }
             Framework::Logging::GetLogger("Hooks")->info("Spawned actor: {}", (void *)lastActor);
         }
 
-        if(ImGui::Button("Destroy Actor")) {
-            if(lastActor) {
+        if (ImGui::Button("Destroy Actor")) {
+            if (lastActor) {
                 // UWorld__DestroyActor(*GWorld, lastActor, false, true);
                 // Framework::Logging::GetLogger("Hooks")->info("Destroyed actor: {}", (void *)lastActor);
                 // lastActor = nullptr;
-                for(auto* actor : spawnedActors) {
+                for (auto *actor : spawnedActors) {
                     UWorld__DestroyActor(*GWorld, actor, false, true);
                 }
             }
@@ -272,43 +291,42 @@ AActor *__fastcall UWorld__SpawnActor_Hook(UWorld *world, UClass *Class, FTransf
     return UWorld__SpawnActor(world, Class, UserTransformPtr, SpawnParameters);
 }
 
-struct FURL
-{
-	// Protocol, i.e. "unreal" or "http".
-	FString Protocol;
+struct FURL {
+    // Protocol, i.e. "unreal" or "http".
+    FString Protocol;
 
-	// Optional hostname, i.e. "204.157.115.40" or "unreal.epicgames.com", blank if local.
-	FString Host;
+    // Optional hostname, i.e. "204.157.115.40" or "unreal.epicgames.com", blank if local.
+    FString Host;
 
-	// Optional host port.
-	int32_t Port;
+    // Optional host port.
+    int32_t Port;
 
-	int32_t Valid;
+    int32_t Valid;
 
-	// Map name, i.e. "SkyCity", default is "Entry".
-	FString Map;
+    // Map name, i.e. "SkyCity", default is "Entry".
+    FString Map;
 
-	// Optional place to download Map if client does not possess it
-	FString RedirectURL;
+    // Optional place to download Map if client does not possess it
+    FString RedirectURL;
 
-	// Options.
-	TArray<FString> Op;
+    // Options.
+    TArray<FString> Op;
 
-	// Portal to enter through, default is "".
-	FString Portal;
+    // Portal to enter through, default is "".
+    FString Portal;
 };
 
-typedef void* UEngine;
-typedef void* FWorldContext;
-typedef bool(__fastcall *UEngine__LoadMap_t)(UEngine* _this,  FWorldContext* WorldContext, FURL URL, class UPendingNetGame* Pending, FString& Error);
+typedef void *UEngine;
+typedef void *FWorldContext;
+typedef bool (__fastcall *UEngine__LoadMap_t)(UEngine *_this, FWorldContext *WorldContext, FURL URL, class UPendingNetGame *Pending, FString &Error);
 
 UEngine__LoadMap_t UEngine__LoadMap_original = nullptr;
 
-bool __fastcall UEngine__LoadMap_Hook(UEngine* _this,  FWorldContext* WorldContext, FURL URL, class UPendingNetGame* Pending, FString& Error) {
-    if(narrow(URL.Map).find("RootLevel") != std::string::npos) {
+bool __fastcall UEngine__LoadMap_Hook(UEngine *_this, FWorldContext *WorldContext, FURL URL, class UPendingNetGame *Pending, FString &Error) {
+    if (narrow(URL.Map).find("RootLevel") != std::string::npos) {
         URL.Map = L"/Game/Levels/Overland/Overland";
     }
-    
+
     return UEngine__LoadMap_original(_this, WorldContext, URL, Pending, Error);
 }
 
@@ -323,9 +341,9 @@ UObject *__fastcall StaticConstructObject_Internal_Hook(const FStaticConstructOb
 
 static InitFunction init([]() {
     //NOTE: get GObjectArray
-    auto Obj_Array_Scan      = hook::pattern("48 8D 0D ? ? ? ? E8 ? ? ? ? 48 8D 8D A0 02 00 00").get_first();
+    auto Obj_Array_Scan = hook::pattern("48 8D 0D ? ? ? ? E8 ? ? ? ? 48 8D 8D A0 02 00 00").get_first();
     uint8_t *Obj_Array_Bytes = reinterpret_cast<uint8_t *>(Obj_Array_Scan);
-    GObjectArray             = reinterpret_cast<FUObjectArray *>(Obj_Array_Bytes + *(int32_t *)(Obj_Array_Bytes + 3) + 7);
+    GObjectArray = reinterpret_cast<FUObjectArray *>(Obj_Array_Bytes + *(int32_t *)(Obj_Array_Bytes + 3) + 7);
 
     //NOTE: spawn actor hook
     auto UWorld__SpawnActor_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 08 FF FF FF 48 81 EC F8 01 00 00 48 8B 05 ? ? ? ? 48 33 C4 48 89 45").get_first());
@@ -339,10 +357,10 @@ static InitFunction init([]() {
     MH_CreateHook((LPVOID)StaticConstructObject_Internal_Addr, &StaticConstructObject_Internal_Hook, (LPVOID *)&StaticConstructObject_Internal_original);
 
     //NOTE: get pointer to world
-    auto GWorld_Scan                  = hook::pattern("48 8B 1D ? ? ? ? 48 85 DB 74 3B 41 B0 01").get_first();
+    auto GWorld_Scan = hook::pattern("48 8B 1D ? ? ? ? 48 85 DB 74 3B 41 B0 01").get_first();
     uint8_t *GWorld_Instruction_Bytes = reinterpret_cast<uint8_t *>(GWorld_Scan);
-    uint64_t GWorld_Addr              = reinterpret_cast<uint64_t>(GWorld_Instruction_Bytes + *(int32_t *)(GWorld_Instruction_Bytes + 3) + 7);
-    GWorld                            = (UWorld **)(GWorld_Addr);
+    uint64_t GWorld_Addr = reinterpret_cast<uint64_t>(GWorld_Instruction_Bytes + *(int32_t *)(GWorld_Instruction_Bytes + 3) + 7);
+    GWorld = (UWorld **)(GWorld_Addr);
 
     //NOTE: UEngine::LoadMap hook
     auto UEngine_LoadMap_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 20 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 A0 FE FF FF 48 81 EC 60 02 00 00 0F").get_first());
