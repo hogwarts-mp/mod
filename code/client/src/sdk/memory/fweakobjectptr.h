@@ -3,7 +3,8 @@
 #include <cstdint>
 
 namespace SDK {
-    struct FWeakObjectPtr {
+    class FWeakObjectPtr {
+      public:
         int32_t ObjectIndex;
         int32_t ObjectSerialNumber;
     };
