@@ -42,7 +42,7 @@ We use **CMake** to build our projects, so you can use any of the supported buil
 
 ## Current state
 
-Actually, the mod isn't playable. It offers a stable and safe playground to experiment and reverse engineer the game:
+At the moment, the mod isn't playable. It offers a stable and safe playground to experiment and reverse engineer the game:
 
 - [x] DirectX 12 hooks for ImGUI rendering
 - [x] Basic game structures reversing (world, players, components, containers etc...) under the SDK namespace
