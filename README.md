@@ -66,4 +66,6 @@ It does not cover (yet):
 
 ## License
 
-The code is licensed under the [GPL V3](LICENSE.txt) license.
+The code is licensed under the [MafiaHub OSS](LICENSE) license.
+
+The 5th clause exists to ensure that the work can focus primarily on this repository, as we provide an access to the multiplayer mod. This is important to ensure that the mod is not used for other purposes, such as the creation of other derivative projects, that would diverge from the original work. This approach guarantees that the changes are directly made to the original work itself, having a healthy ecosystem in mind.
