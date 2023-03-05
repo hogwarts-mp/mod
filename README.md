@@ -24,7 +24,7 @@
 
 ## Introduction
 
-This is a multiplayer mod for Hogwart sLegacy. Publicly available so anyone can tinker around!
+This is a multiplayer mod for Hogwarts Legacy. Publicly available so anyone can tinker around!
 
 **NOTE:** This repository can **NOT** be compiled standalone and requires a special configuration provided by the framework itself. Follow the instructions on the [MafiaHub Framework](https://github.com/mafiahub/framework/) repository to learn how to use this project.
 
