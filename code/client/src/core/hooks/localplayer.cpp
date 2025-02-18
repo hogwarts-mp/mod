@@ -29,4 +29,4 @@ static InitFunction init([]() {
     // Hook local player constructor
     const auto APlayerController__APlayerController_Addr = hook::get_opcode_address("E9 ? ? ? ? C3 85 C0 3C 88");
     MH_CreateHook((LPVOID)APlayerController__APlayerController_Addr, (PBYTE)APlayerController__APlayerController, reinterpret_cast<void **>(&APlayerController__APlayerController_original));
-});
+},"LocalPlayer");

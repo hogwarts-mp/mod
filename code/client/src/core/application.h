@@ -35,17 +35,24 @@ namespace HogwartsMP::Core {
 
         std::shared_ptr<Framework::Utils::States::Machine> _stateMachine;
         std::shared_ptr<HogwartsMP::Game::GameInput> _input;
-        std::shared_ptr<UI::HogwartsConsole> _console;
+        std::shared_ptr<UI::Console> _console;
         std::shared_ptr<UI::Chat> _chat;
         std::shared_ptr<Framework::Utils::CommandProcessor> _commandProcessor;
         DevFeatures _devFeatures;
 
         int _controlsLocked = 0;
 
+        int _lockControlsCounter   = 0;
+        bool _lockControlsBypassed = false;
+
+      private:
+        void ProcessLockControls(bool lock);
+
       public:
         bool PostInit() override;
         bool PreShutdown() override;
         void PostUpdate() override;
+        void PostRender() override;
 
         float GetTickInterval() const {
             return _tickInterval;
@@ -63,7 +70,7 @@ namespace HogwartsMP::Core {
             return _input;
         }
 
-        std::shared_ptr<UI::HogwartsConsole> GetDevConsole() const {
+        std::shared_ptr<UI::Console> GetDevConsole() const {
             return _console;
         }
 
@@ -78,6 +85,10 @@ namespace HogwartsMP::Core {
         void LockControls(bool lock);
         bool AreControlsLocked() const {
             return _controlsLocked>0;
+        }
+        void ToggleLockControlsBypass();
+        bool AreControlsLockedBypassed() const {
+            return _lockControlsBypassed;
         }
 
         uint64_t GetLocalPlayerID();

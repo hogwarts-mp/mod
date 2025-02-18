@@ -41,4 +41,4 @@ static InitFunction init([]() {
     // Hook player controller begin play function
     const auto APlayerController_EndPlay_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC 30 48 8B B9 ? ? ? ? 8B F2").get_first());
     MH_CreateHook((LPVOID)APlayerController_EndPlay_Addr, (PBYTE)APlayerController_EndPlay_Hook, reinterpret_cast<void **>(&APlayerController_EndPlay_original));
-});
+},"PlayerController");

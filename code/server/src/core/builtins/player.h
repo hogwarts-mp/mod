@@ -1,22 +1,23 @@
 #pragma once
 
-#include "integrations/server/scripting/builtins/node/entity.h"
-#include "scripting/engines/node/engine.h"
-#include "scripting/engines/node/sdk.h"
-#include "shared/modules/human_sync.hpp"
+#include <sol/sol.hpp>
 
-#include "scripting/module.h"
+#include "integrations/server/scripting/builtins/entity.h"
+
+#include "shared/modules/human_sync.hpp"
 
 namespace HogwartsMP::Scripting {
     class Human final: public Framework::Integrations::Scripting::Entity {
       public:
-        Human(flecs::entity_t ent): Entity(ent) {}
+        Human(flecs::entity_t ent): Entity(ent) {
+            const auto humanData = _ent.get<Shared::Modules::HumanSync::UpdateData>();
 
-        static v8::Local<v8::Object> WrapHuman(Framework::Scripting::Engines::Node::Resource *res, flecs::entity e) {
-            V8_RESOURCE_LOCK(res);
-            return v8pp::class_<Scripting::Human>::create_object(res->GetIsolate(), e.id());
+            if (!humanData) {
+                throw std::runtime_error(fmt::format("Entity handle '{}' is not a Human!", ent));
+            }
         }
 
+        Human(flecs::entity ent): Human(ent.id()) {}
 
         std::string ToString() const override {
             std::ostringstream ss;
@@ -24,35 +25,34 @@ namespace HogwartsMP::Scripting {
             return ss.str();
         }
 
-        void Destruct(v8::Isolate *isolate) {
-            isolate->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(isolate, "Human object can not be destroyed!").ToLocalChecked()));
+        void Destory() {
+            // Nothing should happen here, as the player entity is destroyed by the game and network systems
         }
 
         static void EventPlayerConnected(flecs::entity e) {
-            Framework::CoreModules::GetScriptingModule()->ForEachResource([&](Framework::Scripting::Engines::IResource *resource) {
-                auto nodeResource = reinterpret_cast<Framework::Scripting::Engines::Node::Resource *>(resource);
-                auto playerObj = WrapHuman(nodeResource, e);
-                nodeResource->InvokeEvent("playerConnected", playerObj);
-            });
+            const auto engine = HogwartsMP::Server::GetScriptingEngine();
+            engine->InvokeEvent("onPlayerConnected", Human(e));
         }
 
         static void EventPlayerDisconnected(flecs::entity e) {
-            Framework::CoreModules::GetScriptingModule()->ForEachResource([&](Framework::Scripting::Engines::IResource *resource) {
-                auto nodeResource = reinterpret_cast<Framework::Scripting::Engines::Node::Resource *>(resource);
-                auto playerObj = WrapHuman(nodeResource, e);
-                nodeResource->InvokeEvent("playerDisconnected", playerObj);
-            });
+            const auto engine = HogwartsMP::Server::GetScriptingEngine();
+            engine->InvokeEvent("onPlayerDisconnected", Human(e));
         }
 
-        static void Register(v8::Isolate *isolate, v8pp::module *rootModule) {
-            if (!rootModule) {
-                return;
-            }
+        static void EventPlayerDied(flecs::entity e) {
+            const auto engine = HogwartsMP::Server::GetScriptingEngine();
+            engine->InvokeEvent("onPlayerDied", Human(e));
+        }
 
-            v8pp::class_<Human> cls(isolate);
-            cls.inherit<Framework::Integrations::Scripting::Entity>();
-            cls.function("destruct", &Human::Destruct);
-            rootModule->class_("Human", cls);
+        static void Register(sol::state& luaEngine) {
+            // Create the Human usertype with inheritance from Entity
+            auto humanType = luaEngine.new_usertype<Human>("Human",
+                // Base class
+                sol::base_classes, sol::bases<Framework::Integrations::Scripting::Entity>(),
+        
+                // Methods
+                "destruct", &Human::Destory
+            );
         }
     };
 } // namespace HogwartsMP::Scripting

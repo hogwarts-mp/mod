@@ -365,7 +365,7 @@ COREUOBJECT_API UObject* StaticDuplicateObjectEx( FObjectDuplicationParameters& 
  * 
  * @return	True if the command was successfully parsed
  */
-COREUOBJECT_API bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar=*GLog );
+COREUOBJECT_API bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar = *GLog );
 
 /**
  * Static UObject tick function, used to verify certain key assumptions and to tick the async loading code.

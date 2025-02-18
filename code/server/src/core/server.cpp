@@ -24,13 +24,13 @@ namespace HogwartsMP {
         GetWorldEngine()->GetWorld()->import <Core::Modules::Human>();
 
         // Setup specific components - default values
-        auto weather = GetWorldEngine()->GetWorld()->get_mut<Shared::Modules::Mod::Weather>();
-        weather->season = Shared::Modules::Mod::SeasonKind::SEASON_SUMMER;
-        weather->weather = "Clear";
-        weather->timeHour = 11;
-        weather->timeMinute = 0;
-        weather->dateDay = 12;
-        weather->dateMonth = 6;
+        auto weather = GetWorldEngine()->GetWorld()->ensure<Shared::Modules::Mod::Weather>();
+        weather.season = Shared::Modules::Mod::SeasonKind::SEASON_SUMMER;
+        weather.weather = "Clear";
+        weather.timeHour = 11;
+        weather.timeMinute = 0;
+        weather.dateDay = 12;
+        weather.dateMonth = 6;
     }
 
     void Server::PostUpdate() {}
@@ -70,12 +70,9 @@ namespace HogwartsMP {
         Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Networking messages registered!");
     }
 
-    void Server::ModuleRegister(Framework::Scripting::Engines::SDKRegisterWrapper sdk) {
-        if (sdk.GetKind() != Framework::Scripting::ENGINE_NODE)
-            return;
-
-        const auto nodeSDK = sdk.GetNodeSDK();
-        Scripting::Builtins::Register(nodeSDK->GetIsolate(), nodeSDK->GetModule());
+    void Server::ModuleRegister(Framework::Scripting::ServerEngine *engine) {
+        _scriptingEngine = engine;
+        Scripting::Builtins::Register(_scriptingEngine->GetLuaEngine());
     }
 
     void Server::BroadcastChatMessage(const std::string &msg) {

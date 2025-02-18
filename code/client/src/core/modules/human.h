@@ -43,5 +43,8 @@ namespace HogwartsMP::Core::Modules {
         static void UpdateTransform(flecs::entity);
 
         static flecs::query<Tracking> findAllHumans;
+    
+    //private:
+        //static void InitRPCs(Application *app);
     };
 } // namespace HogwartsMP::Core::Modules

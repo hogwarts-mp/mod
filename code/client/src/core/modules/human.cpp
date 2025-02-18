@@ -53,25 +53,28 @@ namespace HogwartsMP::Core::Modules {
 
     void Human::Create(flecs::entity e, uint64_t spawnProfile) {
         // auto info           = Core::gApplication->GetEntityFactory()->RequestHuman(spawnProfile);
-        auto trackingData   = e.get_mut<Core::Modules::Human::Tracking>();
-        // todo
+        auto &trackingData = e.ensure<Core::Modules::Human::Tracking>();
 
-        auto interp = e.get_mut<Interpolated>();
-        interp->interpolator.GetPosition()->SetCompensationFactor(1.5f);
+        auto &interp = e.ensure<Interpolated>();
+        interp.interpolator.GetPosition()->SetCompensationFactor(1.5f);
 
         e.add<HumanData>();
+        e.add<Shared::Modules::Mod::EntityKind>();
         e.set<Shared::Modules::Mod::EntityKind>({Shared::Modules::Mod::MOD_PLAYER});
+        e.add<Shared::Modules::HumanSync::UpdateData>();
         // todo spawn
     }
 
     void Human::SetupLocalPlayer(Application *, flecs::entity e) {
-        e.world().defer_begin();
-        auto trackingData   = e.get_mut<Core::Modules::Human::Tracking>();
+        //e.world().defer_begin();
+        auto &trackingData = e.ensure<Core::Modules::Human::Tracking>();
 
         e.add<Shared::Modules::HumanSync::UpdateData>();
         e.add<Core::Modules::Human::LocalPlayer>();
         e.add<HumanData>();
+        e.add<Shared::Modules::Mod::EntityKind>();
         e.set<Shared::Modules::Mod::EntityKind>({Shared::Modules::Mod::MOD_PLAYER});
+        e.add<Framework::World::Modules::Base::Frame>();
 
         const auto localPlayer = Core::gGlobals.localPlayer;
 
@@ -88,9 +91,9 @@ namespace HogwartsMP::Core::Modules {
             return;
         }
 
-        trackingData->player = localPlayer;
+        trackingData.player = localPlayer;
 
-        const auto es            = e.get_mut<Framework::World::Modules::Base::Streamable>();
+        auto es       = e.get_mut<Framework::World::Modules::Base::Streamable>();
         es->modEvents.updateProc = [](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
             const auto updateData = e.get<Shared::Modules::HumanSync::UpdateData>();
 
@@ -100,7 +103,7 @@ namespace HogwartsMP::Core::Modules {
             peer->Send(humanUpdate, guid);
             return true;
         };
-        e.world().defer_end();
+        //e.world().defer_end();
     }
 
     void Human::Update(flecs::entity e) {
@@ -115,8 +118,8 @@ namespace HogwartsMP::Core::Modules {
 
         // Update basic data
         const auto tr = e.get<Framework::World::Modules::Base::Transform>();
-        auto interp   = e.get_mut<Interpolated>();
-        if (interp) {
+        if (e.get<Interpolated>()) {
+            auto interp        = e.get_mut<Interpolated>();
             const auto humanPos = rootComponent->RelativeLocation;
             // const auto humanRot = trackingData->human->GetRot();
             interp->interpolator.GetPosition()->SetTargetValue({humanPos.X, humanPos.Y, humanPos.Z}, tr->pos, HogwartsMP::Core::gApplication->GetTickInterval());
@@ -158,7 +161,7 @@ namespace HogwartsMP::Core::Modules {
             // set up client updates (NPC streaming)
             // TODO disabled for now, we don't really need to stream NPCs atm
 #if 0
-                const auto es = e.get_mut<Framework::World::Modules::Base::Streamable>();
+                auto es = e.get_mut<Framework::World::Modules::Base::Streamable>();
                 es->modEvents.clientUpdateProc = [&](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
                     Shared::Messages::Human::HumanClientUpdate humanUpdate;
                     humanUpdate.FromParameters(e.id());
@@ -212,8 +215,8 @@ namespace HogwartsMP::Core::Modules {
 
         // Update basic data
         const auto tr = e.get<Framework::World::Modules::Base::Transform>();
-        auto interp   = e.get_mut<Interpolated>();
-        if (interp) {
+        if (e.get<Interpolated>()) {
+            auto interp = e.get_mut<Interpolated>();
             // // todo reset lerp
             // const auto humanPos = trackingData->human->GetPos();
             // const auto humanRot = trackingData->human->GetRot();

@@ -8,7 +8,6 @@ int main(int argc, char **argv) {
     opts.bindPort      = 27015;
     opts.webBindHost   = "0.0.0.0";
     opts.webBindPort   = 27016;
-    opts.bindName      = "Hogwarts Legacy: Multiplayer Local Dev Server";
     opts.maxPlayers    = 512;
     opts.modName       = "HogwartsMP";
     opts.modSlug       = "hogwartsmp_server";

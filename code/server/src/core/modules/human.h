@@ -5,6 +5,9 @@
 
 namespace HogwartsMP::Core::Modules {
     class Human {
+    private:
+        static void InitRPCs(std::shared_ptr<Framework::World::ServerEngine> srv, Framework::Networking::NetworkServer *net);
+
       public:
         Human(flecs::world &world);
 

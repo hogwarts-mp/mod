@@ -1,7 +1,6 @@
 #pragma once
 
-#include "scripting/engines/node/engine.h"
-#include "scripting/engines/node/sdk.h"
+#include <sol/sol.hpp>
 
 #include "player.h"
 
@@ -9,6 +8,7 @@
 #include "shared/rpc/set_weather.h"
 #include "shared/modules/mod.hpp"
 
+#include "core/server.h"
 #include "core_modules.h"
 
 namespace HogwartsMP::Scripting {
@@ -63,29 +63,27 @@ namespace HogwartsMP::Scripting {
         }
 
         static void OnChatMessage(flecs::entity e, std::string message) {
-            Framework::CoreModules::GetScriptingModule()->ForEachResource([&](Framework::Scripting::Engines::IResource *resource) {
-                auto nodeResource = reinterpret_cast<Framework::Scripting::Engines::Node::Resource *>(resource);
-                nodeResource->InvokeEvent("chatMessage", Human::WrapHuman(nodeResource, e), message);
-            });
+            const auto engine = HogwartsMP::Server::GetScriptingEngine();
+            engine->InvokeEvent("onChatMessage", Human(e), message);
         }
 
         static void OnChatCommand(flecs::entity e, std::string message, std::string command, std::vector<std::string> args) {
-            Framework::CoreModules::GetScriptingModule()->ForEachResource([&](Framework::Scripting::Engines::IResource *resource) {
-                auto nodeResource = reinterpret_cast<Framework::Scripting::Engines::Node::Resource *>(resource);
-                nodeResource->InvokeEvent("chatCommand", Human::WrapHuman(nodeResource, e), message, command, args);
-            });
+            const auto engine = HogwartsMP::Server::GetScriptingEngine();
+            engine->InvokeEvent("onChatCommand", Human(e), message, command, args);
         }
 
-        static void Register(v8::Isolate *isolate, v8pp::module *rootModule) {
-            v8pp::module environment(isolate);
-            environment.function("setWeather", &World::SetWeather);
-            environment.function("setTime", &World::SetTimeofDay);
-            environment.function("setDate", &World::SetDate);
-            environment.function("setSeason", &World::SetSeason);
-            rootModule->submodule("Environment", environment);
+        static void Register(sol::state& luaEngine) {
+            // Create the main World type
+            sol::usertype<World> worldType = luaEngine.new_usertype<World>("World");
+            worldType["broadcastMessage"] = &World::BroadcastMessage;
+            worldType["sendChatMessage"] = &World::SendChatMessage;
 
-            rootModule->function("sendChatMessage", &World::SendChatMessage);
-            rootModule->function("broadcastMessage", &World::BroadcastMessage);
+            // Create Environment namespace/table
+            sol::table environment = luaEngine.create_table("Environment");
+            environment["setWeather"] = &World::SetWeather;
+            environment["setTime"] = &World::SetTimeofDay;
+            environment["setDate"] = &World::SetDate;
+            environment["setSeason"] = &World::SetSeason;
         }
     };
 } // namespace HogwartsMP::Scripting

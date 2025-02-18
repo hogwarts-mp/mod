@@ -39,4 +39,4 @@ static InitFunction init([]() {
     gMalloc          = *reinterpret_cast<FMalloc**>(GMalloc_Bytes + *(int32_t *)(GMalloc_Bytes + 3) + 7);
     
     Framework::Logging::GetLogger("Hooks")->info("GMalloc {}", (void*)gMalloc);
-});
+},"UE4_impl");

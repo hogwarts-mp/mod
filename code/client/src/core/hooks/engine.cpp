@@ -23,4 +23,5 @@ static InitFunction init([]() {
     // Initialize our tick method
     const auto EngineTick__Addr = hook::get_opcode_address("E8 ? ? ? ? 80 3D ? ? ? ? ? 74 EB");
     MH_CreateHook((LPVOID)EngineTick__Addr, (PBYTE)EngineTick__Hook, reinterpret_cast<void **>(&EngineTick__Hook_original));
-});
+},"Engine");
+

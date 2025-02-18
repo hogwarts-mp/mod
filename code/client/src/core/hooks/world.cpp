@@ -32,4 +32,4 @@ static InitFunction init([]() {
     // Hook world constructor
     const auto UWorld__UWorld_Addr = hook::pattern("40 53 56 57 48 83 EC 20 4C 89 74 24 ?").get_first();
     MH_CreateHook((LPVOID)UWorld__UWorld_Addr, (PBYTE)UWorld__UWorld, reinterpret_cast<void **>(&UWorld__UWorld_original));
-});
+},"World");

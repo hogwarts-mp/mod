@@ -1,5 +1,9 @@
-#include <utils/safe_win32.h>
 #include "playground.h"
+
+#include "application.h"
+
+#include <utils/safe_win32.h>
+
 #include <MinHook.h>
 #include <logging/logger.h>
 #include <utils/hooking/hook_function.h>
@@ -10,7 +14,6 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/UnrealType.h"
 
-#include "application.h"
 #include <utils/string_utils.h>
 #include <imgui.h>
 
@@ -365,4 +368,4 @@ static InitFunction init([]() {
     //NOTE: UEngine::LoadMap hook
     auto UEngine_LoadMap_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 20 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 A0 FE FF FF 48 81 EC 60 02 00 00 0F").get_first());
     MH_CreateHook((LPVOID)UEngine_LoadMap_Addr, &UEngine__LoadMap_Hook, (LPVOID *)&UEngine__LoadMap_original);
-});
+},"Playground");

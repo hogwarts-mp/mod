@@ -27,6 +27,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/ui/console.cpp
     src/core/ui/teleport_manager.cpp
     src/core/ui/season_manager.cpp
+	src/core/ui/ui_base.cpp
 
     src/game/game_input.cpp
     ${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp
@@ -72,5 +73,5 @@ target_compile_definitions(HogwartsMPClient PRIVATE
 )
 
 add_custom_command(TARGET HogwartsMPClient POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/../../files" "${CMAKE_BINARY_DIR}/bin/files/"
-            )
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/../../files" "${CMAKE_BINARY_DIR}/bin/files/"
+)

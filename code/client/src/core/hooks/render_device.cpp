@@ -179,4 +179,4 @@ static InitFunction init([]() {
     // Initialize our Tick method
     //const auto FEngineLoop__BeginFrameRenderThread_Addr = hook::get_opcode_address("E8 ? ? ? ? EB 54 33 D2 48 8D 4D 50");
     //MH_CreateHook((LPVOID)FEngineLoop__BeginFrameRenderThread_Addr, (PBYTE)FEngineLoop__BeginFrameRenderThread_Hook, reinterpret_cast<void **>(&FEngineLoop__BeginFrameRenderThread_original));
-});
+},"Render_Device");

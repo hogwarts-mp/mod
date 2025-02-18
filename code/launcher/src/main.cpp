@@ -7,9 +7,9 @@ int main (void) {
     config.destinationDllName = L"HogwartsMPClient.dll";
     config.executableName     = L"HogwartsLegacy.exe";
     config.name               = "HogwartsMP";
-    config.launchType            = Framework::Launcher::ProjectLaunchType::DLL_INJECTION;
+    config.launchType         = Framework::Launcher::ProjectLaunchType::DLL_INJECTION;
     config.platform           = Framework::Launcher::ProjectPlatform::STEAM;
-    config.preferSteam                     = true;
+    config.preferSteam        = true;
     config.steamAppId         = 990080;
     config.alternativeWorkDir    = L"Phoenix/Binaries/Win64";
     config.additionalLaunchArguments = L" dx12 d3d12 -SaveToUserDir -UserDir=\"Hogwarts Legacy\\HogwartsMP\"";

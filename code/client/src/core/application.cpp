@@ -53,7 +53,7 @@ namespace HogwartsMP::Core {
 
         _commandProcessor = std::make_shared<Framework::Utils::CommandProcessor>();
         _input            = std::make_shared<HogwartsMP::Game::GameInput>();
-        _console          = std::make_shared<UI::HogwartsConsole>(_commandProcessor, _input);
+        _console          = std::make_shared<UI::Console>(_commandProcessor);
         _chat             = std::make_shared<UI::Chat>();
 
         _chat->SetOnMessageSentCallback([this](const std::string &msg) {
@@ -174,6 +174,8 @@ namespace HogwartsMP::Core {
         }
     }
 
+    void Application::PostRender() {}
+
     void Application::InitNetworkingMessages() {
         SetOnConnectionFinalizedCallback([this](flecs::entity newPlayer, float tickInterval) {
             _tickInterval = tickInterval;
@@ -233,23 +235,37 @@ namespace HogwartsMP::Core {
         });
     }
 
+    void Application::ProcessLockControls(bool lock) {
+        //Game::Helpers::Controls::Lock(lock);
+
+        GetImGUI()->SetProcessEventEnabled(lock);
+        GetImGUI()->ShowCursor(lock);
+    }
+
     void Application::LockControls(bool lock) {
         if (lock) _controlsLocked++;
         else _controlsLocked = std::max(--_controlsLocked, 0);
 
         if (_controlsLocked) {
-            // Lock game controls
-            // Game::Helpers::Controls::Lock(true);
 
             // Enable cursor
-            GetImGUI()->ShowCursor(true);
+            ProcessLockControls(true);
         }
         else {
-            // Unlock game controls
-            // Game::Helpers::Controls::Lock(false);
 
             // Disable cursor
-            GetImGUI()->ShowCursor(false);
+            ProcessLockControls(false);
+            _lockControlsBypassed = false;
         }
+    }
+
+    void Application::ToggleLockControlsBypass() {
+        if (!AreControlsLocked()) {
+            Framework::Logging::GetLogger("Application")->error("[ToggleLockControlsBypass] Controls are not locked.");
+            return;
+        }
+
+        ProcessLockControls(_lockControlsBypassed);
+        _lockControlsBypassed = !_lockControlsBypassed;
     }
 }
