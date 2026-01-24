@@ -238,7 +238,6 @@ namespace HogwartsMP::Core {
     void Application::ProcessLockControls(bool lock) {
         //Game::Helpers::Controls::Lock(lock);
 
-        GetImGUI()->SetProcessEventEnabled(lock);
         GetImGUI()->ShowCursor(lock);
     }
 

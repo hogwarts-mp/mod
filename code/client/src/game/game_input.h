@@ -22,6 +22,8 @@ namespace HogwartsMP::Game {
         bool IsMouseLocked() override {
             return false;
         };
+        void SetInputLocked(bool locked) override;
+        bool IsInputLocked() override;
 
         bool IsKeyDown(int key) override {
             return _keysDown[MapKey(key)];

@@ -1,5 +1,7 @@
 #include "game_input.h"
 
+#include "core/application.h"
+
 namespace HogwartsMP::Game {
     void GameInput::Update() {
         for (int i = 0; i < 256; i++) {
@@ -26,5 +28,13 @@ namespace HogwartsMP::Game {
             break;
         default: break;
         }
+    }
+
+    bool GameInput::IsInputLocked() {
+        return Core::gApplication->AreControlsLocked();
+    }
+
+    void GameInput::SetInputLocked(bool locked) {
+        Core::gApplication->LockControls(locked);
     }
 } // namespace HogwartsMP::Game

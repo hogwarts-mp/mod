@@ -48,7 +48,7 @@ target_include_directories(HogwartsMPClient PRIVATE src
     ${UE4_SOURCE_DIR}/Runtime/TraceLog/Public
 )
 
-target_link_libraries(HogwartsMPClient Framework FrameworkClient shlwapi)
+target_link_libraries(HogwartsMPClient Framework FrameworkClient shlwapi lua54_static)
 target_link_options(HogwartsMPClient PRIVATE /SAFESEH:NO /MANIFEST:NO)
 
 target_compile_definitions(HogwartsMPClient PRIVATE 
