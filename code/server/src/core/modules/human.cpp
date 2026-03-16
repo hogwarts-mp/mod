@@ -8,7 +8,7 @@
 #include "shared/messages/human/human_update.h"
 #include "shared/modules/human_sync.hpp"
 
-#include <flecs/flecs.h>
+#include <flecs.h>
 
 namespace HogwartsMP::Core::Modules {
     Human::Human(flecs::world &world) {
@@ -21,10 +21,10 @@ namespace HogwartsMP::Core::Modules {
 
         e.add<Shared::Modules::HumanSync::UpdateData>();
 
-        auto es = e.get_mut<Framework::World::Modules::Base::Streamable>();
+        auto es = e.try_get_mut<Framework::World::Modules::Base::Streamable>();
 
         es->modEvents.spawnProc = [net](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            const auto frame = e.get<Framework::World::Modules::Base::Frame>();
+            const auto frame = e.try_get<Framework::World::Modules::Base::Frame>();
             Shared::Messages::Human::HumanSpawn humanSpawn;
             humanSpawn.FromParameters(frame->modelHash);
             humanSpawn.SetServerID(e.id());
@@ -49,7 +49,7 @@ namespace HogwartsMP::Core::Modules {
         };
 
         es->modEvents.updateProc = [net](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            const auto trackingMetadata = e.get<Shared::Modules::HumanSync::UpdateData>();
+            const auto trackingMetadata = e.try_get<Shared::Modules::HumanSync::UpdateData>();
             // const auto frame            = e.get<Framework::World::Modules::Base::Frame>();
 
             Shared::Messages::Human::HumanUpdate humanUpdate {};
@@ -70,7 +70,7 @@ namespace HogwartsMP::Core::Modules {
                 return;
             }
 
-            auto trackingMetadata = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
+            auto trackingMetadata = e.try_get_mut<Shared::Modules::HumanSync::UpdateData>();
             *trackingMetadata = msg->GetData();
         });
     }

@@ -17,7 +17,7 @@ namespace HogwartsMP::Scripting {
         static void SendChatMessage(std::string message, Human *human) {
             if (human) {
                 const auto ent = human->GetHandle();
-                const auto str   = ent.get<Framework::World::Modules::Base::Streamer>();
+                const auto str   = ent.try_get<Framework::World::Modules::Base::Streamer>();
                 if (!str)
                     return;
                 FW_SEND_COMPONENT_RPC_TO(Shared::RPC::ChatMessage, SLNet::RakNetGUID(str->guid), message);
@@ -27,7 +27,7 @@ namespace HogwartsMP::Scripting {
         static void SetWeather(std::string weatherSetName) {
             auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
 
-            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            auto weather = world->try_get_mut<Shared::Modules::Mod::Weather>();
             weather->weather = weatherSetName;
             FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
         }
@@ -35,7 +35,7 @@ namespace HogwartsMP::Scripting {
         static void SetTimeofDay(uint8_t timeHour, uint8_t timeMinute) {
             auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
 
-            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            auto weather = world->try_get_mut<Shared::Modules::Mod::Weather>();
             weather->timeHour = timeHour;
             weather->timeMinute = timeMinute;
             FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
@@ -44,7 +44,7 @@ namespace HogwartsMP::Scripting {
         static void SetDate(uint8_t day, uint8_t month) {
             auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
 
-            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            auto weather = world->try_get_mut<Shared::Modules::Mod::Weather>();
             weather->dateDay = day;
             weather->dateMonth = month;
             FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
@@ -53,7 +53,7 @@ namespace HogwartsMP::Scripting {
         static void SetSeason(Shared::Modules::Mod::SeasonKind season) {
             auto world = Framework::CoreModules::GetWorldEngine()->GetWorld();
 
-            auto weather = world->get_mut<Shared::Modules::Mod::Weather>();
+            auto weather = world->try_get_mut<Shared::Modules::Mod::Weather>();
             weather->season = season;
             FW_SEND_COMPONENT_RPC(HogwartsMP::Shared::RPC::SetWeather, *weather);
         }

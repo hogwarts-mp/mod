@@ -2,7 +2,7 @@
 
 #include "human.h"
 
-#include <flecs/flecs.h>
+#include <flecs.h>
 
 #include <world/modules/base.hpp>
 
@@ -37,10 +37,10 @@ namespace HogwartsMP::Core::Modules {
             });
 
         world.system<Tracking, Interpolated>("UpdateRemoteHuman").each([](flecs::entity e, Tracking &tracking, Interpolated &interpolated) {
-            if (e.get<LocalPlayer>() == nullptr) {
+            if (e.try_get<LocalPlayer>() == nullptr) {
                 const auto rootComponent = tracking.player->PlayerController->Pawn->RootComponent;
-                auto updateData = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
-                auto humanData  = e.get_mut<HumanData>();
+                auto updateData = e.try_get_mut<Shared::Modules::HumanSync::UpdateData>();
+                auto humanData  = e.try_get_mut<HumanData>();
                 const auto humanPos = rootComponent->RelativeLocation;
                 // const auto humanRot = rootComponent->RelativeRotation;
                 const auto newPos   = interpolated.interpolator.GetPosition()->UpdateTargetValue({humanPos.X, humanPos.Y, humanPos.Z});
@@ -93,9 +93,9 @@ namespace HogwartsMP::Core::Modules {
 
         trackingData.player = localPlayer;
 
-        auto es       = e.get_mut<Framework::World::Modules::Base::Streamable>();
+        auto es       = e.try_get_mut<Framework::World::Modules::Base::Streamable>();
         es->modEvents.updateProc = [](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            const auto updateData = e.get<Shared::Modules::HumanSync::UpdateData>();
+            const auto updateData = e.try_get<Shared::Modules::HumanSync::UpdateData>();
 
             Shared::Messages::Human::HumanUpdate humanUpdate {};
             humanUpdate.SetServerID(Framework::World::ClientEngine::GetServerID(e));
@@ -107,19 +107,19 @@ namespace HogwartsMP::Core::Modules {
     }
 
     void Human::Update(flecs::entity e) {
-        const auto trackingData = e.get<Core::Modules::Human::Tracking>();
+        const auto trackingData = e.try_get<Core::Modules::Human::Tracking>();
         if (!trackingData) {
             return;
         }
 
-        auto updateData                    = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
-        auto humanData                     = e.get_mut<HumanData>();
+        auto updateData                    = e.try_get_mut<Shared::Modules::HumanSync::UpdateData>();
+        auto humanData                     = e.try_get_mut<HumanData>();
         auto rootComponent = trackingData->player->PlayerController->Pawn->RootComponent;
 
         // Update basic data
-        const auto tr = e.get<Framework::World::Modules::Base::Transform>();
-        if (e.get<Interpolated>()) {
-            auto interp        = e.get_mut<Interpolated>();
+        const auto tr = e.try_get<Framework::World::Modules::Base::Transform>();
+        if (e.try_get<Interpolated>()) {
+            auto interp        = e.try_get_mut<Interpolated>();
             const auto humanPos = rootComponent->RelativeLocation;
             // const auto humanRot = trackingData->human->GetRot();
             interp->interpolator.GetPosition()->SetTargetValue({humanPos.X, humanPos.Y, humanPos.Z}, tr->pos, HogwartsMP::Core::gApplication->GetTickInterval());
@@ -134,8 +134,8 @@ namespace HogwartsMP::Core::Modules {
     }
 
     void Human::Remove(flecs::entity e) {
-        auto trackingData = e.get_mut<Core::Modules::Human::Tracking>();
-        if (!trackingData || e.get<LocalPlayer>() != nullptr) {
+        auto trackingData = e.try_get_mut<Core::Modules::Human::Tracking>();
+        if (!trackingData || e.try_get<LocalPlayer>() != nullptr) {
             return;
         }
 
@@ -154,14 +154,14 @@ namespace HogwartsMP::Core::Modules {
             Create(e, msg->GetSpawnProfile());
 
             // Setup other components
-            auto updateData = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
-            auto humanData  = e.get_mut<HumanData>();
+            auto updateData = e.try_get_mut<Shared::Modules::HumanSync::UpdateData>();
+            auto humanData  = e.try_get_mut<HumanData>();
             // todo spawn info
 
             // set up client updates (NPC streaming)
             // TODO disabled for now, we don't really need to stream NPCs atm
 #if 0
-                auto es = e.get_mut<Framework::World::Modules::Base::Streamable>();
+                auto es = e.try_get_mut<Framework::World::Modules::Base::Streamable>();
                 es->modEvents.clientUpdateProc = [&](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
                     Shared::Messages::Human::HumanClientUpdate humanUpdate;
                     humanUpdate.FromParameters(e.id());
@@ -185,7 +185,7 @@ namespace HogwartsMP::Core::Modules {
                 return;
             }
 
-            auto updateData = e.get_mut<Shared::Modules::HumanSync::UpdateData>();
+            auto updateData = e.try_get_mut<Shared::Modules::HumanSync::UpdateData>();
             *updateData     = msg->GetData();
 
             Update(e);
@@ -196,27 +196,27 @@ namespace HogwartsMP::Core::Modules {
                 return;
             }
 
-            auto trackingData = e.get_mut<Core::Modules::Human::Tracking>();
+            auto trackingData = e.try_get_mut<Core::Modules::Human::Tracking>();
             if (!trackingData) {
                 return;
             }
 
-            auto frame       = e.get_mut<Framework::World::Modules::Base::Frame>();
+            auto frame       = e.try_get_mut<Framework::World::Modules::Base::Frame>();
             frame->modelHash = msg->GetSpawnProfile();
 
             // update actor data
         });
     }
     void Human::UpdateTransform(flecs::entity e) {
-        const auto trackingData = e.get<Core::Modules::Human::Tracking>();
+        const auto trackingData = e.try_get<Core::Modules::Human::Tracking>();
         if (!trackingData) {
             return;
         }
 
         // Update basic data
-        const auto tr = e.get<Framework::World::Modules::Base::Transform>();
-        if (e.get<Interpolated>()) {
-            auto interp = e.get_mut<Interpolated>();
+        const auto tr = e.try_get<Framework::World::Modules::Base::Transform>();
+        if (e.try_get<Interpolated>()) {
+            auto interp = e.try_get_mut<Interpolated>();
             // // todo reset lerp
             // const auto humanPos = trackingData->human->GetPos();
             // const auto humanRot = trackingData->human->GetRot();

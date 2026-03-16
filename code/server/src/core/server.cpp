@@ -46,7 +46,7 @@ namespace HogwartsMP {
             Core::Modules::Human::Create(net, player);
 
             // Broadcast chat message
-            const auto st  = player.get<Framework::World::Modules::Base::Streamer>();
+            const auto st  = player.try_get<Framework::World::Modules::Base::Streamer>();
             const auto msg = fmt::format("Player {} has joined the session!", st->nickname);
             BroadcastChatMessage(msg);
 
@@ -54,7 +54,7 @@ namespace HogwartsMP {
         });
 
         SetOnPlayerDisconnectCallback([this](flecs::entity player, uint64_t) {
-            const auto st  = player.get<Framework::World::Modules::Base::Streamer>();
+            const auto st  = player.try_get<Framework::World::Modules::Base::Streamer>();
             const auto msg = fmt::format("Player {} has left the session!", st->nickname);
             BroadcastChatMessage(msg);
 

@@ -75,7 +75,7 @@ namespace HogwartsMP::Core {
         GetWorldEngine()->GetWorld()->import <Modules::Human>();
 
         GetWorldEngine()->SetOnEntityDestroyCallback([](flecs::entity e) {
-            const auto ekind = e.get<Shared::Modules::Mod::EntityKind>();
+            const auto ekind = e.try_get<Shared::Modules::Mod::EntityKind>();
             switch (ekind->kind) {
                 case Shared::Modules::Mod::MOD_PLAYER: Core::Modules::Human::Remove(e); break;
             }
@@ -202,7 +202,7 @@ namespace HogwartsMP::Core {
         if (!_localPlayer)
             return 0;
 
-        const auto sid = _localPlayer.get<Framework::World::Modules::Base::ServerID>();
+        const auto sid = _localPlayer.try_get<Framework::World::Modules::Base::ServerID>();
         return sid->id;
     }
 
@@ -224,7 +224,7 @@ namespace HogwartsMP::Core {
             if (!e.is_alive()) {
                 return;
             }
-            const auto ekind = e.get<Shared::Modules::Mod::EntityKind>();
+            const auto ekind = e.try_get<Shared::Modules::Mod::EntityKind>();
             switch (ekind->kind) {
                 case Shared::Modules::Mod::MOD_PLAYER: Core::Modules::Human::UpdateTransform(e); break;
             }

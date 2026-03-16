@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/server.h"
-#include <flecs/flecs.h>
+#include <flecs.h>
 
 namespace HogwartsMP::Core::Modules {
     class Human {

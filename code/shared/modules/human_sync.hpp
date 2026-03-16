@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include <flecs/flecs.h>
+#include <flecs.h>
 #include <glm/glm.hpp>
 
 
