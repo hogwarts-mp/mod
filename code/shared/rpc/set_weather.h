@@ -22,7 +22,7 @@ namespace HogwartsMP::Shared::RPC {
         uint8_t dateDay;
         uint8_t dateMonth;
 
-        SLNet::RakString weather;
+        MafiaNet::RakString weather;
         Modules::Mod::SeasonKind season;
       public:
         void FromParameters(const Modules::Mod::Weather &weatherData) {
@@ -34,7 +34,7 @@ namespace HogwartsMP::Shared::RPC {
             season = weatherData.season;
         }
 
-        void Serialize(SLNet::BitStream *bs, bool write) override {
+        void Serialize(MafiaNet::BitStream *bs, bool write) override {
             bs->Serialize(write, timeHour);
             bs->Serialize(write, timeMinute);
             bs->Serialize(write, dateDay);

@@ -17,7 +17,7 @@ namespace HogwartsMP::Shared::Messages::Human {
             _spawnProfile = spawnProfile;
         }
 
-        void Serialize(SLNet::BitStream *bs, bool write) override {
+        void Serialize(MafiaNet::BitStream *bs, bool write) override {
             bs->Serialize(write, _spawnProfile);
         }
 

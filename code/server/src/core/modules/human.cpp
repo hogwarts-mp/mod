@@ -61,7 +61,7 @@ namespace HogwartsMP::Core::Modules {
     }
 
     void Human::SetupMessages(std::shared_ptr<Framework::World::ServerEngine> srv, Framework::Networking::NetworkServer *net) {
-        net->RegisterMessage<Shared::Messages::Human::HumanUpdate>(Shared::Messages::ModMessages::MOD_HUMAN_UPDATE, [srv](SLNet::RakNetGUID guid, Shared::Messages::Human::HumanUpdate *msg) {
+        net->RegisterMessage<Shared::Messages::Human::HumanUpdate>(Shared::Messages::ModMessages::MOD_HUMAN_UPDATE, [srv](MafiaNet::RakNetGUID guid, Shared::Messages::Human::HumanUpdate *msg) {
             const auto e = srv->WrapEntity(msg->GetServerID());
             if (!e.is_alive()) {
                 return;

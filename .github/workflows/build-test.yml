@@ -1,0 +1,61 @@
+name: Build & Test
+
+on:
+    push:
+         branches: [ 'main' ]
+    pull_request:
+    workflow_dispatch:
+
+env:
+    # The mod cannot build standalone: CI checks out the MafiaHub Framework and
+    # nests this repository inside code/projects/. Tracking develop means CI
+    # catches framework API drift early; pin to a tag/SHA here if that gets noisy.
+    FRAMEWORK_REF: develop
+
+jobs:
+  build-test:
+    name: Linux build & tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MafiaHub Framework
+        uses: actions/checkout@v4
+        with:
+          repository: MafiaHub/Framework
+          ref: ${{ env.FRAMEWORK_REF }}
+          # The private services-adapter submodule is not fetched; the build
+          # falls back to the public prebuilt MafiaHubServices release.
+          submodules: false
+
+      - name: Checkout mod into the framework
+        uses: actions/checkout@v4
+        with:
+          path: code/projects/mod
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build build-essential ccache \
+            libcurl4-openssl-dev libssl-dev zlib1g-dev libssh2-1-dev
+
+      - name: Set up CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.31.0"
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: ccache-${{ runner.os }}-
+
+      - name: Configure
+        run: |
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build server
+        run: cmake --build build --target HogwartsMPServer
+
+      - name: Build and run tests
+        run: cmake --build build --target RunHogwartsMPTests

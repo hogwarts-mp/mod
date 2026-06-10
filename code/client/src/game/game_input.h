@@ -12,46 +12,46 @@ namespace HogwartsMP::Game {
 
         void Update() override;
 
-        void GetMousePosition(int &x, int &y) override {};
+        void GetMousePosition(int &x, int &y) const override {};
         void SetMousePosition(int x, int y) override {};
         void SetMouseVisible(bool visible) override {};
-        bool IsMouseVisible() override {
+        bool IsMouseVisible() const override {
             return false;
         };
         void SetMouseLocked(bool locked) override {};
-        bool IsMouseLocked() override {
+        bool IsMouseLocked() const override {
             return false;
         };
         void SetInputLocked(bool locked) override;
-        bool IsInputLocked() override;
+        bool IsInputLocked() const override;
 
-        bool IsKeyDown(int key) override {
+        bool IsKeyDown(int key) const override {
             return _keysDown[MapKey(key)];
         };
-        bool IsKeyUp(int key) override {
+        bool IsKeyUp(int key) const override {
             return !_keysDown[MapKey(key)];
         };
-        bool IsKeyPressed(int key) override {
+        bool IsKeyPressed(int key) const override {
             return _keysPressed[MapKey(key)];
         };
-        bool IsKeyReleased(int key) override {
+        bool IsKeyReleased(int key) const override {
             return _keysReleased[MapKey(key)];
         };
 
-        bool IsMouseButtonDown(int button) override {
+        bool IsMouseButtonDown(int button) const override {
             return false;
         };
-        bool IsMouseButtonUp(int button) override {
+        bool IsMouseButtonUp(int button) const override {
             return false;
         };
-        bool IsMouseButtonPressed(int button) override {
+        bool IsMouseButtonPressed(int button) const override {
             return false;
         };
-        bool IsMouseButtonReleased(int button) override {
+        bool IsMouseButtonReleased(int button) const override {
             return false;
         };
 
-        uint32_t MapKey(uint32_t key) override;
+        uint32_t MapKey(uint32_t key) const override;
 
         void ProcessEvent(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 

@@ -19,7 +19,7 @@ namespace SDK {
         UObject *Outer;
 
       public:
-        static TUObjectArray &UObject::GetGlobalObjects() {
+        static TUObjectArray &GetGlobalObjects() {
             return *GObjects;
         }
         std::string GetName() const;
