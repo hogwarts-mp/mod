@@ -5,11 +5,16 @@
 
 #include "modules/human.h"
 
+#include "shared/chat_command.h"
 #include "shared/rpc/chat_message.h"
+
+#include "builtins/builtins.h"
+#include "builtins/events.h"
 
 #include <fmt/format.h>
 
-#include "builtins/builtins.h"
+#include <scripting/node_engine.h>
+#include <v8pp/convert.hpp>
 
 namespace HogwartsMP {
     void Server::PostInit() {
@@ -70,9 +75,26 @@ namespace HogwartsMP {
         Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Networking messages registered!");
     }
 
-    void Server::ModuleRegister(Framework::Scripting::ServerEngine *engine) {
+    void Server::ModuleRegister(Framework::Scripting::Engine *engine) {
         _scriptingEngine = engine;
-        Scripting::Builtins::Register(_scriptingEngine->GetLuaEngine());
+
+        auto *nodeEngine = dynamic_cast<Framework::Scripting::NodeEngine *>(engine);
+        if (!nodeEngine) {
+            return;
+        }
+
+        v8::Isolate *isolate = nodeEngine->GetIsolate();
+        v8::Locker locker(isolate);
+        v8::Isolate::Scope isolateScope(isolate);
+        v8::HandleScope handleScope(isolate);
+        v8::Local<v8::Context> context = nodeEngine->GetContext();
+        v8::Context::Scope contextScope(context);
+
+        v8::Local<v8::Object> global = context->Global();
+        v8::Local<v8::Value> frameworkVal;
+        if (global->Get(context, v8pp::to_v8(isolate, "Framework")).ToLocal(&frameworkVal) && frameworkVal->IsObject()) {
+            Scripting::Builtins::Register(isolate, global, frameworkVal.As<v8::Object>());
+        }
     }
 
     void Server::BroadcastChatMessage(const std::string &msg) {
@@ -80,7 +102,7 @@ namespace HogwartsMP {
     }
     void Server::InitRPCs() {
         const auto net = GetNetworkingEngine()->GetNetworkServer();
-        net->RegisterRPC<Shared::RPC::ChatMessage>([this](SLNet::RakNetGUID guid, Shared::RPC::ChatMessage *chatMessage) {
+        net->RegisterRPC<Shared::RPC::ChatMessage>([this](MafiaNet::RakNetGUID guid, Shared::RPC::ChatMessage *chatMessage) {
             if (!chatMessage->Valid())
                 return;
 
@@ -88,19 +110,18 @@ namespace HogwartsMP {
             if (!ent.is_alive())
                 return;
 
-            const auto text = chatMessage->GetText();
-            if (text[0] == '/') {
-                const auto command  = text.substr(1, text.find(' ') - 1);
-                const auto argsPart = text.substr(text.find(' ') + 1);
-                std::vector<std::string> args;
-                std::string arg;
-                std::istringstream iss(argsPart);
-                while (iss >> arg) {
-                    args.push_back(arg);
-                }
-                Scripting::World::OnChatCommand(ent, text, command, args);
-            } else {
-                Scripting::World::OnChatMessage(ent, text);
+            const auto text   = chatMessage->GetText();
+            const auto parsed = Shared::ParseChatCommand(text);
+            if (parsed.isCommand) {
+                Scripting::World::EventChatCommand(ent, text, parsed.command, parsed.args);
+            }
+            else if (Scripting::GetServerEventListenerCount("chatMessage") > 0) {
+                Scripting::World::EventChatMessage(ent, text);
+            }
+            else {
+                // No JS gamemode is handling chat - broadcast directly so chat still works
+                const auto st = ent.try_get<Framework::World::Modules::Base::Streamer>();
+                BroadcastChatMessage(fmt::format("{}: {}", st ? st->nickname : "Player", text));
             }
         });
     }

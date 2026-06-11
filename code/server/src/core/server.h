@@ -5,7 +5,7 @@
 namespace HogwartsMP {
     class Server: public Framework::Integrations::Server::Instance {
       private:
-        static inline Framework::Scripting::ServerEngine *_scriptingEngine;
+        static inline Framework::Scripting::Engine *_scriptingEngine;
         void InitNetworkingMessages();
 
       public:
@@ -17,13 +17,13 @@ namespace HogwartsMP {
 
         void BroadcastChatMessage(const std::string &msg);
 
-        void ModuleRegister(Framework::Scripting::ServerEngine *engine) override;
+        void ModuleRegister(Framework::Scripting::Engine *engine) override;
 
         void InitRPCs();
 
         static inline Server *_serverRef = nullptr;
 
-        static Framework::Scripting::ServerEngine *GetScriptingEngine() {
+        static Framework::Scripting::Engine *GetScriptingEngine() {
             return _scriptingEngine;
         }
     };

@@ -1,0 +1,10 @@
+{
+  "name": "gamemode",
+  "version": "1.0.0",
+  "author": "HogwartsMP",
+  "description": "Default HogwartsMP gamemode: chat relay and environment commands",
+  "mafiahub": {
+    "server": "server/main.js",
+    "priority": 10
+  }
+}

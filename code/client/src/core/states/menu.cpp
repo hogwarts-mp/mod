@@ -77,9 +77,9 @@ namespace HogwartsMP::Core::States {
             if (ImGui::Button("Connect")) {
                 // Update the application state for further usage
                 Framework::Integrations::Client::CurrentState newApplicationState = HogwartsMP::Core::gApplication->GetCurrentState();
-                newApplicationState._host                                         = serverIp;
-                newApplicationState._port                                         = 27015; // TODO: fix this
-                newApplicationState._nickname                                     = nickname;
+                newApplicationState.host                                          = serverIp;
+                newApplicationState.port                                          = 27015; // TODO: fix this
+                newApplicationState.nickname                                      = nickname;
                 HogwartsMP::Core::gApplication->SetCurrentState(newApplicationState);
 
                 // Request transition to next state (session connection)

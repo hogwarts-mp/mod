@@ -23,7 +23,7 @@ namespace HogwartsMP::Core::States {
     bool SessionConnectionState::OnEnter(Framework::Utils::States::Machine *machine) {
         const auto appState = HogwartsMP::Core::gApplication->GetCurrentState();
 
-        if (!HogwartsMP::Core::gApplication->GetNetworkingEngine()->Connect(appState._host, appState._port, "")) {
+        if (!HogwartsMP::Core::gApplication->GetNetworkingEngine()->Connect(appState.host, appState.port, "")) {
             Framework::Logging::GetInstance()->Get("SessionConnectionState")->error("Connection to server failed");
             machine->RequestNextState(StateIds::Menu);
             return true;

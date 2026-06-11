@@ -64,9 +64,9 @@ long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT 
     auto* renderer = app->GetRenderer();
 
     if(!renderer->IsInitialized()) {
-        auto opts = app->GetOptions();
-        if(opts->rendererOptions.d3d12.commandQueue) {
-            opts->rendererOptions.d3d12.swapchain = pSwapChain;
+        auto &opts = app->GetOptions();
+        if(opts.rendererOptions.d3d12.commandQueue) {
+            opts.rendererOptions.d3d12.swapchain = pSwapChain;
 
             if (app->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
                 Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Rendering subsystems failed to initialize");
@@ -90,9 +90,9 @@ long __fastcall IDXGISwapChain3__ResizeBuffers_Hook(IDXGISwapChain3* pSwapChain,
 
 void __fastcall ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue* queue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists) {
 
-    auto opts = HogwartsMP::Core::gApplication->GetOptions();
-    if (!opts->rendererOptions.d3d12.commandQueue && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
-        opts->rendererOptions.d3d12.commandQueue = queue;
+    auto &opts = HogwartsMP::Core::gApplication->GetOptions();
+    if (!opts.rendererOptions.d3d12.commandQueue && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
+        opts.rendererOptions.d3d12.commandQueue = queue;
     }
 
     ID3D12CommandQueue__ExecuteCommandLists_original(queue, NumCommandLists, ppCommandLists);
@@ -127,9 +127,9 @@ void FWindowsWindow__Initialize_Hook(FDWindowsWindow *pThis, void *app, float **
     HogwartsMP::Core::gGlobals.window = pThis->m_pMainWindow;
 
     // prepare the data
-    auto opts = HogwartsMP::Core::gApplication->GetOptions();
-    opts->rendererOptions.d3d12.device = HogwartsMP::Core::gGlobals.device;
-    opts->rendererOptions.windowHandle = HogwartsMP::Core::gGlobals.window;
+    auto &opts = HogwartsMP::Core::gApplication->GetOptions();
+    opts.rendererOptions.d3d12.device = HogwartsMP::Core::gGlobals.device;
+    opts.rendererOptions.windowHandle = HogwartsMP::Core::gGlobals.window;
 
     SetWindowTextA(pThis->m_pMainWindow, "Hogwarts: Advanced Multiplayer Edition");
 

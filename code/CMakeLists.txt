@@ -10,3 +10,4 @@ if(CMAKE_CL_64)
 endif()
 
 add_subdirectory(server)
+add_subdirectory(tests)

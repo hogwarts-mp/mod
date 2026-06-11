@@ -43,7 +43,9 @@ char *GetNarrowWinMainCommandLine() {
         opts.rendererOptions.backend = Framework::Graphics::RendererBackend::BACKEND_D3D_12;
         opts.rendererOptions.platform = Framework::Graphics::PlatformBackend::PLATFORM_WIN32;
 
-        HogwartsMP::Core::gApplication->Init(opts);
+        if (HogwartsMP::Core::gApplication->Init(opts) != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
+            Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("HogwartsMP client failed to initialize");
+        }
         HogwartsMP::Core::gApplication->Update();
     }
     return GetNarrowWinMainCommandLine_original();

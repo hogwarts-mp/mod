@@ -37,7 +37,7 @@ namespace HogwartsMP::Core {
     Globals gGlobals;
     std::unique_ptr<Application> gApplication = nullptr;
 
-    bool Application::PostInit() {
+    void Application::PostInit() {
         // Create the state machine and initialize
         _stateMachine = std::make_shared<Framework::Utils::States::Machine>();
         _stateMachine->RegisterState<States::InitializeState>();
@@ -61,7 +61,7 @@ namespace HogwartsMP::Core {
 
             HogwartsMP::Shared::RPC::ChatMessage chatMessage {};
             chatMessage.FromParameters(msg);
-            net->SendRPC(chatMessage, SLNet::UNASSIGNED_RAKNET_GUID);
+            net->SendRPC(chatMessage, MafiaNet::UNASSIGNED_RAKNET_GUID);
         });
 
         // setup debug routines
@@ -84,13 +84,9 @@ namespace HogwartsMP::Core {
         });
 
         InitNetworkingMessages();
-
-        return true;
     }
 
-    bool Application::PreShutdown() {
-        return true;
-    }
+    void Application::PreShutdown() {}
 
     void Application::PostUpdate() {
         if (_stateMachine) {
@@ -164,7 +160,7 @@ namespace HogwartsMP::Core {
             DrawCornerText(CORNER_RIGHT_TOP, fmt::format("HogwartsMP version: {} ({})", HogwartsMP::Version::rel, HogwartsMP::Version::git));
 
             // connection details
-            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Connection: {}", connStateNames[connState]));
+            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Connection: {}", connStateNames[static_cast<size_t>(connState)]));
             DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Ping: {}", ping));
         });
 #endif
@@ -209,14 +205,14 @@ namespace HogwartsMP::Core {
     void Application::InitRPCs() {
         const auto net = GetNetworkingEngine()->GetNetworkClient();
 
-        net->RegisterRPC<Shared::RPC::ChatMessage>([this](SLNet::RakNetGUID guid, Shared::RPC::ChatMessage *chatMessage) {
+        net->RegisterRPC<Shared::RPC::ChatMessage>([this](MafiaNet::RakNetGUID guid, Shared::RPC::ChatMessage *chatMessage) {
             if (!chatMessage->Valid())
                 return;
             _chat->AddMessage(chatMessage->GetText());
 
             Framework::Logging::GetLogger("chat")->trace(chatMessage->GetText());
         });
-        net->RegisterGameRPC<Framework::World::RPC::SetTransform>([this](SLNet::RakNetGUID guid, Framework::World::RPC::SetTransform *msg) {
+        net->RegisterGameRPC<Framework::World::RPC::SetTransform>([this](MafiaNet::RakNetGUID guid, Framework::World::RPC::SetTransform *msg) {
             if (!msg->Valid()) {
                 return;
             }
@@ -230,7 +226,7 @@ namespace HogwartsMP::Core {
             }
         });
 
-        net->RegisterRPC<Shared::RPC::SetWeather>([this](SLNet::RakNetGUID guid, Shared::RPC::SetWeather *msg) {
+        net->RegisterRPC<Shared::RPC::SetWeather>([this](MafiaNet::RakNetGUID guid, Shared::RPC::SetWeather *msg) {
             Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Sync Weather!");
         });
     }
