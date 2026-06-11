@@ -4,11 +4,14 @@
 #include "../containers/tarray.h"
 #include "../types/uobject.h"
 
+#include "../../core/game_layout.h"
+
 namespace SDK {
     class UGameInstance: public UObject {
       public:
-        char pad0[0x10];                                 
-        TArray<ULocalPlayer *> LocalPlayers; 
+        // pad computed from the central offset table (core/game_layout.h)
+        char pad0[HogwartsMP::Game::Offset::UGameInstance_LocalPlayers - sizeof(UObject)];
+        TArray<ULocalPlayer *> LocalPlayers;
         struct UOnlineSession *OnlineSession;              
         TArray<UObject *> ReferencedObjects; 
         char pad1[0x18];                                 

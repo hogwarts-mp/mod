@@ -6,6 +6,8 @@
 
 #include <logging/logger.h>
 
+#include "../aob_scan.h"
+
 class FObjectInitializer;
 typedef void *(__fastcall *ULocalPlayer__ULocalPlayer_t)(void *, const FObjectInitializer&);
 ULocalPlayer__ULocalPlayer_t ULocalPlayer__ULocalPlayer_original = nullptr;
@@ -22,11 +24,18 @@ void *APlayerController__APlayerController(void *pThis, const FObjectInitializer
 }
 
 static InitFunction init([]() {
-    // Hook local player constructor
-    const auto ULocalPlayer__ULocalPlayer_Addr = hook::get_opcode_address("E9 ? ? ? ? C3 66 66 66 2E 0F 1F 84 00 00 00 00 00 48 8D 64 24 D8 41 54 F7 1C 24");
-    MH_CreateHook((LPVOID)ULocalPlayer__ULocalPlayer_Addr, (PBYTE)ULocalPlayer__ULocalPlayer, reinterpret_cast<void **>(&ULocalPlayer__ULocalPlayer_original));
+    using HogwartsMP::Core::AobOpcodeAddr;
+    using HogwartsMP::Game::gLayout;
 
-    // Hook local player constructor
-    const auto APlayerController__APlayerController_Addr = hook::get_opcode_address("E9 ? ? ? ? C3 85 C0 3C 88");
-    MH_CreateHook((LPVOID)APlayerController__APlayerController_Addr, (PBYTE)APlayerController__APlayerController, reinterpret_cast<void **>(&APlayerController__APlayerController_original));
+    // Hook local player / player controller constructors (optional:
+    // logging-only, no consumer — local player is found via the GWorld chain)
+    const auto ULocalPlayer__ULocalPlayer_Addr = AobOpcodeAddr(gLayout.ulocalplayerCtor);
+    if (ULocalPlayer__ULocalPlayer_Addr) {
+        MH_CreateHook((LPVOID)ULocalPlayer__ULocalPlayer_Addr, (PBYTE)ULocalPlayer__ULocalPlayer, reinterpret_cast<void **>(&ULocalPlayer__ULocalPlayer_original));
+    }
+
+    const auto APlayerController__APlayerController_Addr = AobOpcodeAddr(gLayout.apcCtor);
+    if (APlayerController__APlayerController_Addr) {
+        MH_CreateHook((LPVOID)APlayerController__APlayerController_Addr, (PBYTE)APlayerController__APlayerController, reinterpret_cast<void **>(&APlayerController__APlayerController_original));
+    }
 },"LocalPlayer");
