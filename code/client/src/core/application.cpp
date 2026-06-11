@@ -1,3 +1,5 @@
+#include <utils/safe_win32.h>
+
 #include "application.h"
 
 #include <logging/logger.h>
@@ -32,8 +34,22 @@
 
 #include "../sdk/game/ulevel.h"
 
+#include "game_layout.h"
+#include <cstddef>
 
 namespace HogwartsMP::Core {
+    // Compile-time guard: the SDK struct layouts (sdk/**) and the central offset
+    // table (game_layout.h) must agree. The pads are computed from the table, so
+    // this verifies the pad arithmetic actually lands each member at the intended
+    // offset — a bad base/member size or a reordered field fails the build here
+    // instead of crashing in-game.
+    static_assert(offsetof(SDK::UWorld, PersistentLevel) == Game::Offset::UWorld_PersistentLevel,
+                  "UWorld::PersistentLevel does not match game_layout offset table");
+    static_assert(offsetof(SDK::UWorld, OwningGameInstance) == Game::Offset::UWorld_OwningGameInstance,
+                  "UWorld::OwningGameInstance does not match game_layout offset table");
+    static_assert(offsetof(SDK::UGameInstance, LocalPlayers) == Game::Offset::UGameInstance_LocalPlayers,
+                  "UGameInstance::LocalPlayers does not match game_layout offset table");
+
     Globals gGlobals;
     std::unique_ptr<Application> gApplication = nullptr;
 
@@ -88,6 +104,52 @@ namespace HogwartsMP::Core {
 
     void Application::PreShutdown() {}
 
+    namespace {
+        struct PlayerGrab {
+            // Step reached: 4=GameInstance, 5=LocalPlayer, 6=PlayerController, 7=Character.
+            // Negative => access violation right after step -(N)-1 (stale offset).
+            int step;
+            SDK::ULocalPlayer *lp;
+            SDK::ABiped_Player *biped;
+        };
+        // SEH-guarded walk *GWorld -> PersistentLevel -> OwningWorld ->
+        // OwningGameInstance -> LocalPlayers[0] -> PlayerController -> Character.
+        // Guarded so a still-stale struct offset reports its step instead of
+        // crashing. Only pointer reads inside __try (no C++ objects → no unwind).
+        static PlayerGrab SafeGrabLocalPlayer(SDK::UWorld **gworld) {
+            PlayerGrab r{};
+            __try {
+                if (!gworld) return r;
+                auto *world = *gworld;
+                if (!world) return r;
+                r.step = 1;
+                auto *pl = world->PersistentLevel;
+                if (!pl) return r;
+                r.step = 2;
+                auto *ow = pl->OwningWorld;
+                if (!ow) return r;
+                r.step = 3;
+                auto *gi = ow->OwningGameInstance;
+                if (!gi) return r;
+                r.step = 4;
+                auto *lp = gi->LocalPlayers.Data[0];
+                if (!lp) return r;
+                r.lp   = lp;
+                r.step = 5;
+                auto *pc = lp->PlayerController;
+                if (!pc) return r;
+                r.step = 6;
+                auto *ch = pc->Character;
+                if (!ch) return r;
+                r.biped = reinterpret_cast<SDK::ABiped_Player *>(ch);
+                r.step  = 7;
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                r.step = -(r.step + 1);
+            }
+            return r;
+        }
+    } // namespace
+
     void Application::PostUpdate() {
         if (_stateMachine) {
             _stateMachine->Update();
@@ -100,36 +162,24 @@ namespace HogwartsMP::Core {
                 return;
             }
 
-            const auto world = *gGlobals.world;
-            if (!world) {
+            const auto grab = SafeGrabLocalPlayer(gGlobals.world);
+            if (!grab.lp) {
+                // Not ready yet (world/menu still loading). Warn once if a stale
+                // offset faulted upstream of LocalPlayer, so it's visible.
+                static int s_warned = 0;
+                if (grab.step < 0 && s_warned < 3) {
+                    Framework::Logging::GetLogger("Application")->warn("Local-player grab faulted at step {} (stale offset upstream of LocalPlayer)", grab.step);
+                    ++s_warned;
+                }
                 return;
             }
 
-            const auto persistentLevel = world->PersistentLevel;
-            if (!persistentLevel) {
-                return;
-            }
-
-            const auto owningWorld = persistentLevel->OwningWorld;
-            if (!owningWorld) {
-                return;
-            }
-
-            const auto gameInstance = owningWorld->OwningGameInstance;
-            if (!gameInstance) {
-                return;
-            }
-
-            const auto localPlayer = gameInstance->LocalPlayers.Data[0];
-            if (!localPlayer) {
-                return;
-            }
-
-            gGlobals.localPlayer = localPlayer;
-            if (localPlayer->PlayerController && localPlayer->PlayerController->Character) {
-                gGlobals.localBipedPlayer = reinterpret_cast<SDK::ABiped_Player *>(localPlayer->PlayerController->Character);
-            }
-            Framework::Logging::GetLogger("Application")->info("Found local player at {} (player controller {}, character {})", fmt::ptr(localPlayer), fmt::ptr(localPlayer->PlayerController), fmt::ptr(gGlobals.localBipedPlayer));
+            // Latch the local player. biped may be null if PlayerController /
+            // Character offsets are still stale (grab.step < 7) — surfaced in the
+            // log below for follow-up, but we stop retrying (no per-tick faults).
+            gGlobals.localPlayer      = grab.lp;
+            gGlobals.localBipedPlayer = grab.biped;
+            Framework::Logging::GetLogger("Application")->info("Found local player {} (biped {}, grab reached step {}/7)", fmt::ptr(grab.lp), fmt::ptr(grab.biped), grab.step);
         }
 
         // Tick discord instance - Temporary

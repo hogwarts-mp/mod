@@ -6,6 +6,8 @@
 
 #include <logging/logger.h>
 
+#include "../aob_scan.h"
+
 enum EndPlayReason {
     /** When the Actor or Component is explicitly destroyed. */
     Destroyed,
@@ -34,11 +36,18 @@ void APlayerController_EndPlay_Hook(void *pThis, EndPlayReason reason) {
 }
 
 static InitFunction init([]() {
-    // Hook player controller begin play function
-    const auto APlayerController_BeginPlay_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 56 48 83 EC 40 48 89 7C 24 ?").get_first());
-    MH_CreateHook((LPVOID)APlayerController_BeginPlay_Addr, (PBYTE)APlayerController_BeginPlay_Hook, reinterpret_cast<void **>(&APlayerController_BeginPlay_original));
+    using HogwartsMP::Core::AobFirst;
+    using HogwartsMP::Game::gLayout;
 
-    // Hook player controller begin play function
-    const auto APlayerController_EndPlay_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC 30 48 8B B9 ? ? ? ? 8B F2").get_first());
-    MH_CreateHook((LPVOID)APlayerController_EndPlay_Addr, (PBYTE)APlayerController_EndPlay_Hook, reinterpret_cast<void **>(&APlayerController_EndPlay_original));
+    // Hook player controller begin/end play (optional: logging-only, no
+    // consumer yet — wire to a consumer when MP join/leave/respawn lands)
+    const auto APlayerController_BeginPlay_Addr = reinterpret_cast<uint64_t>(AobFirst(gLayout.apcBeginPlay));
+    if (APlayerController_BeginPlay_Addr) {
+        MH_CreateHook((LPVOID)APlayerController_BeginPlay_Addr, (PBYTE)APlayerController_BeginPlay_Hook, reinterpret_cast<void **>(&APlayerController_BeginPlay_original));
+    }
+
+    const auto APlayerController_EndPlay_Addr = reinterpret_cast<uint64_t>(AobFirst(gLayout.apcEndPlay));
+    if (APlayerController_EndPlay_Addr) {
+        MH_CreateHook((LPVOID)APlayerController_EndPlay_Addr, (PBYTE)APlayerController_EndPlay_Hook, reinterpret_cast<void **>(&APlayerController_EndPlay_original));
+    }
 },"PlayerController");

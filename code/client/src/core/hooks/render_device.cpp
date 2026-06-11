@@ -8,6 +8,7 @@
 #include <logging/logger.h>
 
 #include "../application.h"
+#include "../aob_scan.h"
 #include "dx12_pointer_grab.cpp"
 
 #include <imgui.h>
@@ -65,7 +66,30 @@ long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT 
 
     if(!renderer->IsInitialized()) {
         auto &opts = app->GetOptions();
-        if(opts.rendererOptions.d3d12.commandQueue) {
+
+        // TEMP BOOTSTRAP (2026-06): the FWindowsWindow::Initialize and
+        // FD3D12Adapter::CreateRootDevice AOBs are stale for this build and
+        // their hooks never fire, so device + windowHandle are never set the
+        // original way. Source them from the swapchain instead. REVERT this
+        // block once those two render functions are re-derived (see
+        // framework-mod-stale-native-layer memory) to restore original flow.
+        if (!opts.rendererOptions.d3d12.device) {
+            ID3D12Device *dev = nullptr;
+            if (SUCCEEDED(pSwapChain->GetDevice(__uuidof(ID3D12Device), reinterpret_cast<void **>(&dev))) && dev) {
+                opts.rendererOptions.d3d12.device = dev;
+                HogwartsMP::Core::gGlobals.device  = dev;
+                dev->Release(); // swapchain keeps the device alive; borrow the ptr
+            }
+        }
+        if (!opts.rendererOptions.windowHandle) {
+            DXGI_SWAP_CHAIN_DESC desc{};
+            if (SUCCEEDED(pSwapChain->GetDesc(&desc)) && desc.OutputWindow) {
+                opts.rendererOptions.windowHandle = desc.OutputWindow;
+                HogwartsMP::Core::gGlobals.window  = desc.OutputWindow;
+            }
+        }
+
+        if(opts.rendererOptions.d3d12.commandQueue && opts.rendererOptions.d3d12.device) {
             opts.rendererOptions.d3d12.swapchain = pSwapChain;
 
             if (app->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
@@ -99,6 +123,14 @@ void __fastcall ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue*
 }
 
 void HookDX12_Functions() {
+    // One-shot: safe to call from the temporary EngineTick bootstrap and from
+    // the (currently dead) FWindowsWindow::Initialize hook without double-hooking.
+    static bool s_hooked = false;
+    if (s_hooked) {
+        return;
+    }
+    s_hooked = true;
+
     auto pointersRes = GrabDX12Pointers();
     if(!pointersRes.has_value()) {
         Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Unable to grab DX12 pointers !");
@@ -116,6 +148,14 @@ void HookDX12_Functions() {
     MH_CreateHook((LPVOID)pointers.IDXGISwapChain3__ResizeBuffers, (PBYTE)IDXGISwapChain3__ResizeBuffers_Hook, reinterpret_cast<void **>(&IDXGISwapChain3__ResizeBuffers_orignal));
     MH_CreateHook((LPVOID)pointers.ID3D12CommandQueue__ExecuteCommandLists, (PBYTE)ID3D12CommandQueue__ExecuteCommandLists_Hook, reinterpret_cast<void **>(&ID3D12CommandQueue__ExecuteCommandLists_original));
     MH_EnableHook(NULL);
+}
+
+// TEMP BOOTSTRAP (2026-06): kick the DX12/ImGui hookup from the working
+// EngineTick hook, because the FWindowsWindow::Initialize hook that normally
+// triggers it is on a stale AOB and never fires. Idempotent (HookDX12_Functions
+// is one-shot). Remove once that render AOB is re-derived.
+void EnsureDX12Hooked() {
+    HookDX12_Functions();
 }
 
 /* ---------------------------------------------- */
@@ -160,17 +200,27 @@ void FD3D12Adapter__CreateRootdevice_Hook(FD3D12Adapter *pThis, bool withDebug) 
 // }
 
 static InitFunction init([]() {
-    // Initialize our FWindowsWindow Initialize method
-    const auto FWindowsWindow__Initialize_Addr = hook::pattern("4C 8B DC 53 55 56 41 54 41 55 41 56").get_first();
-    MH_CreateHook((LPVOID)FWindowsWindow__Initialize_Addr, (PBYTE)FWindowsWindow__Initialize_Hook, reinterpret_cast<void **>(&FWindowsWindow__Initialize_original));
+    using HogwartsMP::Core::AobFirst;
+    using HogwartsMP::Core::AobOpcodeAddr;
+    using HogwartsMP::Game::gLayout;
 
-    // Initialize our FWindowsApplication ProcessMessage method
-    const auto FWindowsApplication__ProcessMessage_Addr = hook::get_opcode_address("E8 ? ? ? ? 48 8B 5C 24 ? 48 8B 6C 24 ? 48 8B 74 24 ? 48 98");
-    MH_CreateHook((LPVOID)FWindowsApplication__ProcessMessage_Addr, (PBYTE)FWindowsApplication__ProcessMessage_Hook, reinterpret_cast<void **>(&FWindowsApplication__ProcessMessage_original));
+    // NOTE: these two render AOBs currently match the WRONG functions on this
+    // build (their handlers never fire); the overlay is brought up by the
+    // EngineTick DX12 bootstrap instead. Kept wired for when they're re-derived.
+    const auto FWindowsWindow__Initialize_Addr = AobFirst(gLayout.fwindowsWindowInitialize);
+    if (FWindowsWindow__Initialize_Addr) {
+        MH_CreateHook((LPVOID)FWindowsWindow__Initialize_Addr, (PBYTE)FWindowsWindow__Initialize_Hook, reinterpret_cast<void **>(&FWindowsWindow__Initialize_original));
+    }
 
-    // Initialize our CreateRootDevice method
-    const auto FD3D12Adapter__CreateRootDevice_Addr = hook::pattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 44 0F B6 FA").get_first();
-    MH_CreateHook((LPVOID)FD3D12Adapter__CreateRootDevice_Addr, (PBYTE)FD3D12Adapter__CreateRootdevice_Hook, reinterpret_cast<void **>(&FD3D12Adapter__CreateRootdevice_original));
+    const auto FWindowsApplication__ProcessMessage_Addr = AobOpcodeAddr(gLayout.fwindowsAppProcessMessage);
+    if (FWindowsApplication__ProcessMessage_Addr) {
+        MH_CreateHook((LPVOID)FWindowsApplication__ProcessMessage_Addr, (PBYTE)FWindowsApplication__ProcessMessage_Hook, reinterpret_cast<void **>(&FWindowsApplication__ProcessMessage_original));
+    }
+
+    const auto FD3D12Adapter__CreateRootDevice_Addr = AobFirst(gLayout.fd3d12CreateRootDevice);
+    if (FD3D12Adapter__CreateRootDevice_Addr) {
+        MH_CreateHook((LPVOID)FD3D12Adapter__CreateRootDevice_Addr, (PBYTE)FD3D12Adapter__CreateRootdevice_Hook, reinterpret_cast<void **>(&FD3D12Adapter__CreateRootdevice_original));
+    }
 
     // Init our present hook
     // const auto FD3D12Viewport__PresentInternal_Addr = hook::pattern("89 54 24 10 4C 8B DC 57").get_first();

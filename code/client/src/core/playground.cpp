@@ -1,6 +1,7 @@
 #include "playground.h"
 
 #include "application.h"
+#include "aob_scan.h"
 
 #include <utils/safe_win32.h>
 
@@ -205,7 +206,7 @@ public:
     EObjectFlags ObjectFlags;
 };
 
-typedef AActor *(__fastcall *UWorld__SpawnActor_t)(UWorld *world, UClass *Class, FTransform const *UserTransformPtr, const FActorSpawnParameters &SpawnParameters);
+typedef AActor *(__fastcall *UWorld__SpawnActor_t)(UWorld *world, UClass *Class, FVector const *Location, FRotator const *Rotation, const FActorSpawnParameters &SpawnParameters);
 UWorld__SpawnActor_t UWorld__SpawnActor = nullptr;
 
 typedef bool *(__fastcall *UWorld__DestroyActor_t)(UWorld *world, AActor *ThisActor, bool bNetForce, bool bShouldModifyLevel);
@@ -260,14 +261,13 @@ void Playground_Tick() {
 
             Framework::Logging::GetLogger("Hooks")->info("Found UObject: {}", narrow(foundObject->GetFName().ToString()).c_str());
 
-            FTransform transform{};
             FVector pos = {351002.25f, -463037.25f, -85707.94531f};
-            transform.SetTranslation(pos);
+            FRotator rot = {0.0f, 0.0f, 0.0f};
 
             FActorSpawnParameters spawnParams{};
             spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-            lastActor = UWorld__SpawnActor(*GWorld, foundObject, &transform, spawnParams);
+            lastActor = UWorld__SpawnActor(*GWorld, foundObject, &pos, &rot, spawnParams);
             if (lastActor != nullptr) {
                 spawnedActors.push_back(lastActor);
             }
@@ -289,9 +289,8 @@ void Playground_Tick() {
     });
 }
 
-AActor *__fastcall UWorld__SpawnActor_Hook(UWorld *world, UClass *Class, FTransform const *UserTransformPtr, const FActorSpawnParameters &SpawnParameters) {
-    //Framework::Logging::GetLogger("Hooks")->info("Spawned actor class: {} name: {}", narrow(Class->GetFName().ToString()).c_str(), narrow(SpawnParameters.Name.ToString()));
-    return UWorld__SpawnActor(world, Class, UserTransformPtr, SpawnParameters);
+AActor *__fastcall UWorld__SpawnActor_Hook(UWorld *world, UClass *Class, FVector const *Location, FRotator const *Rotation, const FActorSpawnParameters &SpawnParameters) {
+    return UWorld__SpawnActor(world, Class, Location, Rotation, SpawnParameters);
 }
 
 struct FURL {
@@ -343,29 +342,42 @@ UObject *__fastcall StaticConstructObject_Internal_Hook(const FStaticConstructOb
 }
 
 static InitFunction init([]() {
+    using HogwartsMP::Core::AobFirst;
+    using HogwartsMP::Game::gLayout;
+
     //NOTE: get GObjectArray
-    auto Obj_Array_Scan = hook::pattern("48 8D 0D ? ? ? ? E8 ? ? ? ? 48 8D 8D A0 02 00 00").get_first();
+    auto Obj_Array_Scan = AobFirst(gLayout.gObjectArray);
     uint8_t *Obj_Array_Bytes = reinterpret_cast<uint8_t *>(Obj_Array_Scan);
-    GObjectArray = reinterpret_cast<FUObjectArray *>(Obj_Array_Bytes + *(int32_t *)(Obj_Array_Bytes + 3) + 7);
+    if (Obj_Array_Bytes) {
+        GObjectArray = reinterpret_cast<FUObjectArray *>(Obj_Array_Bytes + *(int32_t *)(Obj_Array_Bytes + 3) + 7);
+    }
 
     //NOTE: spawn actor hook
-    auto UWorld__SpawnActor_Addr = reinterpret_cast<uint64_t>(hook::pattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 08 FF FF FF 48 81 EC F8 01 00 00 48 8B 05 ? ? ? ? 48 33 C4 48 89 45").get_first());
-    MH_CreateHook((LPVOID)UWorld__SpawnActor_Addr, &UWorld__SpawnActor_Hook, (LPVOID *)&UWorld__SpawnActor);
+    auto UWorld__SpawnActor_Addr = reinterpret_cast<uint64_t>(AobFirst(gLayout.uworldSpawnActor));
+    if (UWorld__SpawnActor_Addr) {
+        MH_CreateHook((LPVOID)UWorld__SpawnActor_Addr, &UWorld__SpawnActor_Hook, (LPVOID *)&UWorld__SpawnActor);
+    }
 
     //NOTE: destroy actor
-    UWorld__DestroyActor = reinterpret_cast<UWorld__DestroyActor_t>(hook::pattern("40 53 56 57 41 54 41 55 41 57 48 81 EC 18").get_first());
+    UWorld__DestroyActor = reinterpret_cast<UWorld__DestroyActor_t>(AobFirst(gLayout.uworldDestroyActor));
 
     //NOTE: create static object hook
-    auto StaticConstructObject_Internal_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 10 48 89 74 24 18 55 57 41 54 41 56 41 57 48 8D AC 24 50 FF FF FF").get_first());
-    MH_CreateHook((LPVOID)StaticConstructObject_Internal_Addr, &StaticConstructObject_Internal_Hook, (LPVOID *)&StaticConstructObject_Internal_original);
+    auto StaticConstructObject_Internal_Addr = reinterpret_cast<uint64_t>(AobFirst(gLayout.staticConstructObject));
+    if (StaticConstructObject_Internal_Addr) {
+        MH_CreateHook((LPVOID)StaticConstructObject_Internal_Addr, &StaticConstructObject_Internal_Hook, (LPVOID *)&StaticConstructObject_Internal_original);
+    }
 
     //NOTE: get pointer to world
-    auto GWorld_Scan = hook::pattern("48 8B 1D ? ? ? ? 48 85 DB 74 3B 41 B0 01").get_first();
+    auto GWorld_Scan = AobFirst(gLayout.gWorld);
     uint8_t *GWorld_Instruction_Bytes = reinterpret_cast<uint8_t *>(GWorld_Scan);
-    uint64_t GWorld_Addr = reinterpret_cast<uint64_t>(GWorld_Instruction_Bytes + *(int32_t *)(GWorld_Instruction_Bytes + 3) + 7);
-    GWorld = (UWorld **)(GWorld_Addr);
+    if (GWorld_Instruction_Bytes) {
+        uint64_t GWorld_Addr = reinterpret_cast<uint64_t>(GWorld_Instruction_Bytes + *(int32_t *)(GWorld_Instruction_Bytes + 3) + 7);
+        GWorld = (UWorld **)(GWorld_Addr);
+    }
 
-    //NOTE: UEngine::LoadMap hook
-    auto UEngine_LoadMap_Addr = reinterpret_cast<uint64_t>(hook::pattern("48 89 5C 24 20 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 A0 FE FF FF 48 81 EC 60 02 00 00 0F").get_first());
-    MH_CreateHook((LPVOID)UEngine_LoadMap_Addr, &UEngine__LoadMap_Hook, (LPVOID *)&UEngine__LoadMap_original);
+    //NOTE: UEngine::LoadMap hook (optional: dev redirect RootLevel->Overland, no consumer)
+    auto UEngine_LoadMap_Addr = reinterpret_cast<uint64_t>(AobFirst(gLayout.uengineLoadMap));
+    if (UEngine_LoadMap_Addr) {
+        MH_CreateHook((LPVOID)UEngine_LoadMap_Addr, &UEngine__LoadMap_Hook, (LPVOID *)&UEngine__LoadMap_original);
+    }
 },"Playground");
