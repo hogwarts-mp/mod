@@ -21,7 +21,9 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/application.cpp
     src/core/dev_features.cpp
     src/core/ue4_impl.cpp
+    src/core/ue4_reflection.cpp
     src/core/playground.cpp
+    src/core/student_proxy.cpp
 
     src/core/ui/chat.cpp
     src/core/ui/console.cpp

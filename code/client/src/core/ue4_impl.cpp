@@ -32,6 +32,17 @@ FString FName::ToString() const {
     return out;
 }
 
+// Normally lives in UnrealNames.cpp (not compiled here). Linker glue: FName's
+// default ctor (FName() -> FName(NAME_None)) pulls in FNameEntryId::FromEName,
+// which references this symbol. NOTE that FromEName short-circuits NAME_None
+// itself (NameTypes.h), so this stub only ever RUNS for a non-None hardcoded
+// EName — and entry 0 ("None") is then the WRONG answer. Nothing in the mod
+// does that today; the log is here so it cannot start happening silently.
+FNameEntryId FNameEntryId::FromValidEName(EName Ename) {
+    Framework::Logging::GetLogger("Hooks")->error("FNameEntryId::FromValidEName({}) stub hit — returning the NAME_None entry, name resolution will be wrong", static_cast<int>(Ename));
+    return FNameEntryId();
+}
+
 static InitFunction init([]() {
     using HogwartsMP::Core::AobFirst;
     using HogwartsMP::Game::gLayout;
