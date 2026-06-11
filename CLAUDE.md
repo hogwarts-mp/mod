@@ -47,7 +47,7 @@ code/
 │   └── core/
 │       ├── server.h/cpp      # Server instance (extends Framework::Integrations::Server::Instance)
 │       ├── modules/human.h   # Human entity ECS module
-│       └── builtins/         # Lua scripting API extensions
+│       └── builtins/         # JavaScript (V8) scripting API extensions
 │
 └── shared/
     ├── modules/
