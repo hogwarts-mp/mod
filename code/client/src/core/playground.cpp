@@ -1,5 +1,6 @@
 #include "playground.h"
 
+#include "appearance_dump.h"
 #include "application.h"
 #include "aob_scan.h"
 #include "student_proxy.h"
@@ -111,6 +112,7 @@ void Playground_Tick() {
     // here, not in the (render-thread) ImGui callback. The buttons below only
     // set thread-safe request flags.
     HogwartsMP::Core::StudentProxy::ProcessPending();
+    HogwartsMP::Core::AppearanceDump::ProcessPending();
 
     static AActor *lastActor = nullptr;
 
@@ -194,6 +196,14 @@ void Playground_Tick() {
         if (ImGui::Button("Despawn Students")) {
             HogwartsMP::Core::StudentProxy::RequestDespawnAll();
         }
+
+        ImGui::Separator();
+        ImGui::TextDisabled("Appearance harvest");
+        if (ImGui::Button("Dump Nearby NPC Appearances")) {
+            HogwartsMP::Core::AppearanceDump::RequestDump();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(logs to AppearanceDump channel)");
 
         ImGui::End();
     });

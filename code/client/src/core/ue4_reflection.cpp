@@ -141,4 +141,73 @@ namespace HogwartsMP::Core::UE4 {
         *reinterpret_cast<float *>(reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal()) = value;
         return true;
     }
+
+    int ReadByteProperty(void *obj, const char *name) {
+        auto *prop = FindPropertyInChain(static_cast<UObjectBase *>(obj)->GetClass(), name);
+        if (!prop) {
+            return -1;
+        }
+        const auto type = narrow(prop->GetClass()->GetFName());
+        if (type != "ByteProperty" && type != "EnumProperty") {
+            return -1;
+        }
+        return static_cast<int>(*reinterpret_cast<uint8_t *>(
+            reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal()));
+    }
+
+    std::string ReadNameProperty(void *obj, const char *name) {
+        auto *prop = FindPropertyInChain(static_cast<UObjectBase *>(obj)->GetClass(), name);
+        if (!prop || narrow(prop->GetClass()->GetFName()) != "NameProperty") {
+            return {};
+        }
+        auto *fname = reinterpret_cast<FName *>(
+            reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal());
+        return narrow(*fname);
+    }
+
+    std::string ReadStringProperty(void *obj, const char *name) {
+        auto *prop = FindPropertyInChain(static_cast<UObjectBase *>(obj)->GetClass(), name);
+        if (!prop || narrow(prop->GetClass()->GetFName()) != "StrProperty") {
+            return {};
+        }
+        auto *fstr = reinterpret_cast<FString *>(
+            reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal());
+        return narrow(*fstr);
+    }
+
+    UObjectBase *ReadObjectProperty(void *obj, const char *name) {
+        auto *prop = FindPropertyInChain(static_cast<UObjectBase *>(obj)->GetClass(), name);
+        if (!prop) {
+            return nullptr;
+        }
+        // Only dereference if the property really stores a UObject* — otherwise
+        // we'd reinterpret arbitrary bytes (a struct/array/etc.) as a pointer.
+        // TObjectPtr<T> (ObjectPtrProperty) is layout-compatible with T* here.
+        const auto type = narrow(prop->GetClass()->GetFName());
+        if (type != "ObjectProperty" && type != "ObjectPtrProperty") {
+            return nullptr;
+        }
+        return *reinterpret_cast<UObjectBase **>(
+            reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal());
+    }
+
+    std::string AssetPath(UObjectBase *obj) {
+        if (!obj) {
+            return "(null)";
+        }
+        std::string name = narrow(obj->GetFName());
+        for (auto *outer = obj->GetOuter(); outer; outer = outer->GetOuter()) {
+            name = narrow(outer->GetFName()) + "." + name;
+        }
+        return name;
+    }
+
+    bool IsSubclassOf(UClass *cls, const char *baseName) {
+        for (UStruct *s = cls; s; s = s->GetSuperStruct()) {
+            if (narrow(s->GetFName()) == baseName) {
+                return true;
+            }
+        }
+        return false;
+    }
 } // namespace HogwartsMP::Core::UE4

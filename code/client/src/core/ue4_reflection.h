@@ -7,6 +7,8 @@
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
 
+#include <string>
+
 namespace HogwartsMP::Core::UE4 {
     // Equivalent of UE4SS's GetFunctionByNameInChain: walk the class hierarchy
     // looking for a UFunction by short name. Avoids hardcoding declaring
@@ -35,4 +37,24 @@ namespace HogwartsMP::Core::UE4 {
     bool SetBoolProperty(void *obj, const char *name, bool value);
     // Unchecked: assumes the named property really is a float.
     bool SetFloatProperty(void *obj, const char *name, float value);
+
+    // Typed property reads (used by the AppearanceDump harvester).
+    // Read a byte/uint8 (or enum) property by name; returns -1 if not found.
+    int ReadByteProperty(void *obj, const char *name);
+    // Read an FName property by name; returns empty string if not found.
+    std::string ReadNameProperty(void *obj, const char *name);
+    // Read an FString property by name; returns empty string if not found.
+    std::string ReadStringProperty(void *obj, const char *name);
+    // Read a raw UObject* property (ObjectProperty / ObjectPtrProperty —
+    // TObjectPtr<T> is layout-compatible with T* in UE4.27). Returns nullptr
+    // if the property is not found or the stored pointer is null.
+    UObjectBase *ReadObjectProperty(void *obj, const char *name);
+
+    // Full UE4 asset path for an object: outer chain joined onto the package
+    // path, e.g. "/Game/RiggedObjects/.../SK_Foo.SK_Foo" — the form
+    // LoadObjectByPath expects.
+    std::string AssetPath(UObjectBase *obj);
+
+    // True if cls or any superclass has the given short name.
+    bool IsSubclassOf(UClass *cls, const char *baseName);
 } // namespace HogwartsMP::Core::UE4

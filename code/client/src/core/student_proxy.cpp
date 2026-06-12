@@ -10,11 +10,13 @@
 //      Spawns via native UWorld::SpawnActor — the FVector+FRotator overload
 //      (the engine/console/UE4SS one; the FTransform overload the mod used to
 //      hook was the wrong function on this build). See game_layout.h.
-//   2. Dress CharacterMesh0 with the student CMBH outfit mesh + the ~150
-//      harvested swatch MID parameters (kit_params.h) — without them the
-//      outfit renders as a white placeholder.
+//   2. Dress CharacterMesh0 with the student outfit mesh + the harvested
+//      swatch MID parameters (kit_params_*_uni03.h) — without them the
+//      outfit renders as a white placeholder. House identity is a per-gender
+//      tint + crest-texture overlay on top (kit_params_houses.h).
 //   3. Add a second SkeletalMeshComponent for the head+hands skin, attach it
-//      to CharacterMesh0 (single actor — no z-fighting).
+//      to CharacterMesh0 (single actor — no z-fighting). Females get a third
+//      component for hair (their head mesh has none baked in).
 //   4. Animation: the game's AnimationArchitect middleware starves regular
 //      AnimBPs on raw-spawned actors (they instantiate but output ref pose),
 //      so play a raw idle AnimSequence on the skin component and master-pose
@@ -36,6 +38,9 @@
 
 #include "application.h"
 #include "kit_params.h"
+#include "kit_params_female_uni03.h"
+#include "kit_params_houses.h"
+#include "kit_params_male_uni03.h"
 #include "ue4_natives.h"
 #include "ue4_reflection.h"
 
@@ -65,33 +70,70 @@ namespace {
         return Framework::Logging::GetLogger("StudentProxy");
     }
 
-    // ── Student kit asset paths (harvested from live NPCs; loadable by path
-    //    from any save, no NPCs required in memory) ──────────────────────────
-    const wchar_t *OUTFIT_MESH_PATH =
-        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni01/SK_HUM_M_CMBH_StuUni01_Robed_Master_ClothJoint.SK_HUM_M_CMBH_StuUni01_Robed_Master_ClothJoint";
-    constexpr std::array OUTFIT_MATS{
-        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni01/Materials/MI_HUM_M_CMBH_Robed_StuUni01.MI_HUM_M_CMBH_Robed_StuUni01",
-        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni01/Materials/MI_HUM_M_CMBH_Robed_StuUni01.MI_HUM_M_CMBH_Robed_StuUni01",
-        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni01/Materials/MI_HUM_M_CMBH_Robed_StuUni01.MI_HUM_M_CMBH_Robed_StuUni01",
-        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni01/Materials/MI_HUM_M_CMBH_Robed_StuUni01.MI_HUM_M_CMBH_Robed_StuUni01",
+    // ── Student kit asset paths (harvested from live NPCs via AppearanceDump;
+    //    loadable by path from any save, no NPCs required in memory) ─────────
+    //
+    // Both genders wear the StuUni03 robe family (what T3 ambient students
+    // wear) so the per-gender house overlays in kit_params_houses.h land on
+    // the right material zones.
+
+    // ── Male ─────────────────────────────────────────────────────────────────
+    const wchar_t *OUTFIT_MESH_PATH_M =
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni03/SK_HUM_M_CMB_StuUni03_Dynamics_Master.SK_HUM_M_CMB_StuUni03_Dynamics_Master";
+    constexpr std::array OUTFIT_MATS_M{
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni03/Materials/MI_HUM_M_CMB_StuUni03_Robed.MI_HUM_M_CMB_StuUni03_Robed",
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni03/Materials/MI_HUM_M_CMB_StuUni03_Robed.MI_HUM_M_CMB_StuUni03_Robed",
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni03/Materials/MI_HUM_M_CMB_StuUni03_Robed.MI_HUM_M_CMB_StuUni03_Robed",
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_M/StuUni03/Materials/MI_HUM_M_CMB_StuUni03_Robed.MI_HUM_M_CMB_StuUni03_Robed",
         L"/Game/RiggedObjects/MasterMaterials/Misc/MI_ClothSim.MI_ClothSim",
         L"/Game/RiggedObjects/MasterMaterials/Misc/MI_ClothSim.MI_ClothSim",
         L"/Game/RiggedObjects/MasterMaterials/Misc/MI_ClothSim.MI_ClothSim",
     };
-    static_assert(OUTFIT_MATS.size() == 7); // one per outfit material slot
+    static_assert(OUTFIT_MATS_M.size() == 7); // one per outfit material slot
     // Sebastian Sallow head+hands ("Sebastien" typo is in the game assets).
-    const wchar_t *SKIN_MESH_PATH =
+    const wchar_t *SKIN_MESH_PATH_M =
         L"/Game/RiggedObjects/Characters/Human/Heads/NPC_YM_SebastianSallow/NPC_YM_SebastienSallow_Master.NPC_YM_SebastienSallow_Master";
-    constexpr std::array SKIN_MATS{
+    constexpr std::array SKIN_MATS_M{
         L"/Game/RiggedObjects/Characters/Human/Heads/Materials/MI_HUM_N_Heads_Eyelash.MI_HUM_N_Heads_Eyelash",
         L"/Game/RiggedObjects/Characters/Human/Heads/Materials/MI_HUM_N_Heads_Teeth.MI_HUM_N_Heads_Teeth",
         L"/Game/RiggedObjects/Characters/Human/Heads/Young_M/Materials/MI_Young_M_Head.MI_Young_M_Head",
         L"/Game/RiggedObjects/Characters/Human/Heads/Materials/MI_HUM_N_Heads_Eye.MI_HUM_N_Heads_Eye",
         L"/Game/RiggedObjects/Characters/Human/Heads/Materials/MI_HUM_N_Heads_EyeOcclusion.MI_HUM_N_Heads_EyeOcclusion",
     };
-    static_assert(SKIN_MATS.size() == 5); // one per skin material slot
+    static_assert(SKIN_MATS_M.size() == 5); // one per skin material slot
+
+    // ── Female ───────────────────────────────────────────────────────────────
+    // Mesh + material harvested from live female BP_Tier3_Character_C robes
+    // (material via the runtime MID's Parent chain — naming is inconsistent
+    // between genders in the game's own assets).
+    const wchar_t *OUTFIT_MESH_PATH_F =
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_F/StuUni03/SK_HUM_F_CMB_StuUni03_Robed_Dynamics_Master.SK_HUM_F_CMB_StuUni03_Robed_Dynamics_Master";
+    constexpr std::array OUTFIT_MATS_F{
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_F/StuUni03/Materials/MI_HUM_F_CMBH_StuUni03_Robed.MI_HUM_F_CMBH_StuUni03_Robed",
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_F/StuUni03/Materials/MI_HUM_F_CMBH_StuUni03_Robed.MI_HUM_F_CMBH_StuUni03_Robed",
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_F/StuUni03/Materials/MI_HUM_F_CMBH_StuUni03_Robed.MI_HUM_F_CMBH_StuUni03_Robed",
+        L"/Game/RiggedObjects/Characters/Human/Clothing/Combined_F/StuUni03/Materials/MI_HUM_F_CMBH_StuUni03_Robed.MI_HUM_F_CMBH_StuUni03_Robed",
+        L"/Game/RiggedObjects/MasterMaterials/Misc/MI_ClothSim.MI_ClothSim",
+        L"/Game/RiggedObjects/MasterMaterials/Misc/MI_ClothSim.MI_ClothSim",
+        L"/Game/RiggedObjects/MasterMaterials/Misc/MI_ClothSim.MI_ClothSim",
+    };
+    static_assert(OUTFIT_MATS_F.size() == 7);
+    // Generic young-female NPC head (incl. hands), confirmed loaded in the
+    // AppearanceDump head scan. Slot layout differs from the male head — her
+    // mesh's default materials are kept (the male override made the face
+    // translucent and hid the hands), so no SKIN_MATS_F set exists.
+    const wchar_t *SKIN_MESH_PATH_F =
+        L"/Game/RiggedObjects/Characters/Human/Heads/NPC_Young_F/SK_NPC_Young_F_Head_Master.SK_NPC_Young_F_Head_Master";
+    // The female head has no baked hair (Sebastian's male mesh does) — add a
+    // separate hair component. Mesh + material harvested from live female NPCs.
+    const wchar_t *HAIR_MESH_PATH_F =
+        L"/Game/RiggedObjects/Characters/Human/Hair/Hair_F/ChunkHair01/SK_HUM_F_Hair_ChunkHair01_Bang0Bun1_Master.SK_HUM_F_Hair_ChunkHair01_Bang0Bun1_Master";
+    constexpr std::array HAIR_MATS_F{
+        L"/Game/RiggedObjects/Characters/Human/Hair/Hair_F/ChunkHair01/Materials/MI_HUM_F_Hair_ChunkHair01_Bang0Bun1.MI_HUM_F_Hair_ChunkHair01_Bang0Bun1",
+    };
+
     // Raw idle sequences (engine single-node playback bypasses the
-    // AnimationArchitect middleware). Male first, female fallback.
+    // AnimationArchitect middleware). Index 0=male, 1=female.
     constexpr std::array IDLE_SEQ_PATHS{
         L"/Game/Animation/Human/Student/Student_M/StuM_BM_Idle_Loop_Stand_anm.StuM_BM_Idle_Loop_Stand_anm",
         L"/Game/Animation/Human/Student/Student_F/StuF_BM_Idle_Loop_Stand_anm.StuF_BM_Idle_Loop_Stand_anm",
@@ -259,9 +301,55 @@ namespace {
         Log()->info("MID params applied on {}/{} slots", applied, matPaths.size());
     }
 
+    // Apply per-house tint overrides + crest patch textures on top of the base
+    // kit params. Works on the MIDs ApplyMidParams already installed (fetched
+    // back via GetMaterial). House order matches kit_params_houses.h:
+    // 0=Gry, 1=Sly, 2=Rav, 3=Huf.
+    void ApplyHouseOverlay(void *comp, int numSlots,
+                           std::span<const HogwartsMP::KitParams::HouseParam> params,
+                           std::span<const HogwartsMP::KitParams::HouseTexture> htex,
+                           int house, UClass *texCls) {
+        house = std::clamp(house, 0, 3);
+
+        // Crest patch textures (T_Patch_{G,S,R,H}) — same set for every slot.
+        std::vector<std::pair<FName, UObjectBase *>> texParams;
+        texParams.reserve(htex.size());
+        for (const auto &t : htex) {
+            if (auto *tex = LoadObjectByPath(texCls, t.path[house])) {
+                texParams.emplace_back(MakeFName(t.name), tex);
+            }
+        }
+
+        for (int i = 0; i < numSlots; ++i) {
+            struct {
+                int32_t ElementIndex;
+                UObjectBase *ReturnValue;
+            } gm{i, nullptr};
+            CallUFunction(comp, "GetMaterial", &gm);
+            auto *mid = gm.ReturnValue;
+            if (!mid || narrow(mid->GetClass()->GetFName()) != "MaterialInstanceDynamic") {
+                continue;
+            }
+            for (const auto &p : params) {
+                struct {
+                    FName Name;
+                    FLinearColorF Value;
+                } vp{MakeFName(p.name), {p.v[house][0], p.v[house][1], p.v[house][2], p.v[house][3]}};
+                CallUFunction(mid, "SetVectorParameterValue", &vp);
+            }
+            for (const auto &[texName, tex] : texParams) {
+                struct {
+                    FName Name;
+                    UObjectBase *Value;
+                } tp{texName, tex};
+                CallUFunction(mid, "SetTextureParameterValue", &tp);
+            }
+        }
+    }
+
     // ── The spawn itself ─────────────────────────────────────────────────────
 
-    AActor *SpawnStudent(const FVector &pos, float yawDeg) {
+    AActor *SpawnStudent(const FVector &pos, float yawDeg, bool female = false, int house = 0) {
         auto *cls = reinterpret_cast<UClass *>(find_uobject("Class /Script/Phoenix.Biped_Character"));
         if (!cls) {
             Log()->error("Biped_Character class not found");
@@ -339,20 +427,53 @@ namespace {
 
         using namespace HogwartsMP::KitParams;
 
-        auto *outfitMesh = LoadObjectByPath(skelMeshCls, OUTFIT_MESH_PATH);
+        const auto *outfitMeshPath = female ? OUTFIT_MESH_PATH_F : OUTFIT_MESH_PATH_M;
+        std::span<const wchar_t *const> outfitMats = female ? OUTFIT_MATS_F : OUTFIT_MATS_M;
+
+        auto *outfitMesh = LoadObjectByPath(skelMeshCls, outfitMeshPath);
+        if (!outfitMesh && female) {
+            // Fall back to the male outfit so the proxy is still visible
+            // rather than invisible.
+            Log()->warn("Female outfit mesh not found — falling back to male");
+            female         = false;
+            outfitMeshPath = OUTFIT_MESH_PATH_M;
+            outfitMats     = OUTFIT_MATS_M;
+            outfitMesh     = LoadObjectByPath(skelMeshCls, outfitMeshPath);
+        }
         if (!outfitMesh) {
             return finalize(actor);
         }
-        DressComponent(meshComp, outfitMesh, OUTFIT_MATS, matCls);
-        ApplyMidParams(meshComp, OUTFIT_MATS, Scalars, Vectors, Textures, matCls, texCls);
+        DressComponent(meshComp, outfitMesh, outfitMats, matCls);
+        if (female) {
+            ApplyMidParams(meshComp, outfitMats,
+                           FemaleUni03Scalars, FemaleUni03Vectors, FemaleUni03Textures,
+                           matCls, texCls);
+        }
+        else {
+            ApplyMidParams(meshComp, outfitMats,
+                           MaleUni03Scalars, MaleUni03Vectors, MaleUni03Textures,
+                           matCls, texCls);
+        }
+        // House tint + crest overlay on top of the base params (zone layouts
+        // are per-gender, see kit_params_houses.h).
+        ApplyHouseOverlay(meshComp, static_cast<int>(outfitMats.size()),
+                          female ? std::span<const HouseParam>{HouseParamsF} : std::span<const HouseParam>{HouseParamsM},
+                          female ? std::span<const HouseTexture>{HouseTexturesF} : std::span<const HouseTexture>{HouseTexturesM},
+                          house, texCls);
 
-        // The outfit is a *_ClothJoint mesh — keep cloth sim off; the robe is
+        // The outfit is a cloth-sim mesh — keep cloth sim off; the robe is
         // master-posed to the skin below instead of simulating.
         SetBoolProperty(meshComp, "bDisableClothSimulation", true);
 
         // Skin (head+hands) on ONE added component, attached to CharacterMesh0.
+        const auto *skinMeshPath = female ? SKIN_MESH_PATH_F : SKIN_MESH_PATH_M;
+
         UObjectBase *skinComp = nullptr;
-        auto *skinMesh        = LoadObjectByPath(skelMeshCls, SKIN_MESH_PATH);
+        auto *skinMesh        = LoadObjectByPath(skelMeshCls, skinMeshPath);
+        if (!skinMesh && female) {
+            Log()->warn("Female skin mesh not found — falling back to male head");
+            skinMesh = LoadObjectByPath(skelMeshCls, SKIN_MESH_PATH_M);
+        }
         if (smcCls && skinMesh) {
             // AddComponentByClass(UClass*, bool bManualAttachment, FTransform, bool bDeferredFinish)
             // UE4.27 FTransform in a ProcessEvent param block: vectorized floats,
@@ -382,25 +503,71 @@ namespace {
                 attach.Parent = meshComp;
                 CallUFunction(skinComp, "K2_AttachToComponent", &attach);
 
-                DressComponent(skinComp, skinMesh, SKIN_MATS, matCls);
-                // Skin materials are parameterized like the outfit's — the
-                // *_WithHands_* textures in this set are what fixes the hands.
-                ApplyMidParams(skinComp, SKIN_MATS, SkinScalars, SkinVectors, SkinTextures, matCls, texCls);
+                if (female) {
+                    // Female head: keep the mesh's default materials (single
+                    // slot, MI_NPC_Young_F) — the male override set made her
+                    // face translucent and hid the hands.
+                    DressComponent(skinComp, skinMesh, {}, matCls);
+                }
+                else {
+                    DressComponent(skinComp, skinMesh, SKIN_MATS_M, matCls);
+                    // Skin materials are parameterized like the outfit's — the
+                    // *_WithHands_* textures in this set are what fixes the hands.
+                    ApplyMidParams(skinComp, SKIN_MATS_M, SkinScalars, SkinVectors, SkinTextures, matCls, texCls);
+                }
             }
             else {
                 Log()->warn("AddComponentByClass returned null — no skin component");
             }
         }
 
-        // Idle animation: raw sequence playback on the skin comp (bypasses the
-        // starved AnimBPs), outfit master-posed to it.
-        auto *seqCls      = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.AnimSequence"));
-        UObjectBase *idle = nullptr;
-        for (const auto *path : IDLE_SEQ_PATHS) {
-            idle = LoadObjectByPath(seqCls, path);
-            if (idle) {
-                break;
+        // Hair for females — separate component master-posed to the head.
+        if (female && skinComp) {
+            if (auto *hairMesh = LoadObjectByPath(skelMeshCls, HAIR_MESH_PATH_F)) {
+                struct alignas(16) {
+                    UClass *Class{};
+                    bool bManualAttachment{};
+                    uint8_t pad[7]{};
+                    float Transform[12]{0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0};
+                    bool bDeferredFinish{};
+                    uint8_t pad2[7]{};
+                    UObjectBase *ReturnValue{};
+                } addHair{};
+                addHair.Class = smcCls;
+                CallUFunction(actor, "AddComponentByClass", &addHair);
+                if (auto *hairComp = addHair.ReturnValue) {
+                    struct {
+                        UObjectBase *Parent{};
+                        FName SocketName{};
+                        uint8_t LocationRule{2};
+                        uint8_t RotationRule{2};
+                        uint8_t ScaleRule{2};
+                        bool bWeldSimulatedBodies{};
+                        bool ReturnValue{};
+                    } attachHair{};
+                    attachHair.Parent = skinComp;
+                    CallUFunction(hairComp, "K2_AttachToComponent", &attachHair);
+
+                    DressComponent(hairComp, hairMesh, HAIR_MATS_F, matCls);
+                    struct {
+                        UObjectBase *NewMasterBoneComponent;
+                        bool bForceUpdate;
+                    } hairPose{skinComp, true};
+                    CallUFunction(hairComp, "SetMasterPoseComponent", &hairPose);
+                }
+                else {
+                    Log()->warn("AddComponentByClass returned null — no hair component");
+                }
             }
+        }
+
+        // Idle animation: raw sequence playback on the skin comp (bypasses the
+        // starved AnimBPs), outfit master-posed to it. Try the gender-matched
+        // idle first; fall through to the other if it fails.
+        auto *seqCls      = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.AnimSequence"));
+        UObjectBase *idle = LoadObjectByPath(seqCls, IDLE_SEQ_PATHS[female ? 1 : 0]);
+        if (!idle) {
+            idle = LoadObjectByPath(seqCls, IDLE_SEQ_PATHS[female ? 0 : 1]);
         }
         if (idle && skinComp) {
             struct {
@@ -450,8 +617,11 @@ namespace {
             const float offsetDeg = (static_cast<float>(i) - static_cast<float>(count - 1) * 0.5f) * kSpacingDeg;
             const float rad       = (rot.Yaw + offsetDeg) * kPi / 180.f;
             const FVector pos{loc.X + std::cos(rad) * kDistance, loc.Y + std::sin(rad) * kDistance, loc.Z};
-            // +180 so the students face back toward the player.
-            if (auto *actor = SpawnStudent(pos, rot.Yaw + offsetDeg + 180.f)) {
+            // Alternate gender and cycle houses (spawn 8 to see all four houses
+            // in both genders); +180 so the students face back toward the player.
+            const bool female = (i % 2 == 1);
+            const int house   = (i / 2) % 4;
+            if (auto *actor = SpawnStudent(pos, rot.Yaw + offsetDeg + 180.f, female, house)) {
                 auto *obj         = reinterpret_cast<UObjectBase *>(actor);
                 const auto index  = static_cast<int32_t>(obj->GetUniqueID());
                 int32_t serial    = 0;

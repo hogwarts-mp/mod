@@ -1,7 +1,29 @@
-﻿#pragma once
+#pragma once
 // AUTO-GENERATED from a live BP_Student_C MID dump (2026-06-10).
 // Same parameter set applies to all 7 outfit material slots (verified: two
 // independent in-game harvests were byte-identical).
+//
+// ── Material zones ──────────────────────────────────────────────────────────
+// Param names like "Color_Tint_High[7]" are flat FNames; the [n] suffix is the
+// artists' convention for a ZONE of the outfit's swatch-kit master material.
+// A region-ID mask texture maps each texel to a zone; zone n then gets its own
+// Swatch_{Diffuse,MRAB,Normal}[n] fabric textures, Color_Tint_{High,Low}[n]
+// tints, UVBias/UvRotationScale[n] mapping, and Fuzz/Overlay_Opacity/
+// Base_SROD_Modifier[n] surface tweaks.
+//
+// Zone numbering is PER-MATERIAL — each robe material has its own layout, so
+// house overlays only apply to the robe they were harvested from. Per-material
+// zone maps live at the top of each kit_params_*_uniNN.h header ("StuUniNN" is
+// the game's uniform-style asset variant, not our versioning). Adding another
+// uniform style later (StuUni01/02/04…) means harvesting a new header with the
+// same AppearanceDump pipeline.
+//
+// The legacy arrays below belong to the male StuUni01 robe
+// (MI_HUM_M_CMBH_Robed_StuUni01) — no longer worn by the proxy (it switched to
+// StuUni03 so the house overlays line up). Known zones: 12 = visible skin
+// (T_Skin_Arms*); the rest is unmapped. The house tables in
+// kit_params_houses.h DO NOT apply to this layout.
+// ────────────────────────────────────────────────────────────────────────────
 
 #include <array>
 
