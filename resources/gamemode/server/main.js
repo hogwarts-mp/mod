@@ -16,6 +16,18 @@ const Events = Core.Events;
 
 const SEASONS = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 
+// --- Dev: server-spawned NPCs ---
+// World.spawnHuman(x, y, z) returns a server-owned human the clients render via
+// the student-proxy path; npc.destroy() despawns it. Also doubles as a
+// single-client test of the remote-avatar flow (spawn -> dress -> move ->
+// despawn) without a second client.
+//
+// NOTE: dev scaffolding for a single tester — npcs/timer are module-global, not
+// per-player, so concurrent testers would step on each other. Fine for now.
+const npcs = [];
+const MAX_NPCS = 20;
+let npcWalkTimer = null;
+
 Events.on("playerConnect", (player) => {
     console.log(`[GAMEMODE] ${player.nickname} connected`);
     player.sendChat("[SERVER] Welcome to HogwartsMP! Commands: /weather /time /date /season");
@@ -72,6 +84,67 @@ Events.on("chatCommand", (player, message, command, args) => {
             }
             Environment.setSeason(season);
             World.broadcastMessage(`[SERVER] Season changed`);
+            break;
+        }
+
+        case "spawnnpc": {
+            if (npcs.length >= MAX_NPCS) {
+                player.sendChat(`[DEV] NPC limit reached (${MAX_NPCS}) — /clearnpcs first`);
+                break;
+            }
+            const p = player.position;
+            // Spawn ~1 m to the side so it's right next to the player.
+            const npc = World.spawnHuman(p.x + 100, p.y, p.z);
+            npcs.push(npc);
+            player.sendChat(`[DEV] Spawned NPC #${npcs.length} next to you`);
+            break;
+        }
+
+        case "walknpcs": {
+            if (npcWalkTimer) {
+                clearInterval(npcWalkTimer);
+                npcWalkTimer = null;
+                player.sendChat("[DEV] NPCs stopped");
+                break;
+            }
+            if (npcs.length === 0) {
+                player.sendChat("[DEV] No NPCs to walk — use /spawnnpc first");
+                break;
+            }
+            // Orbit each NPC around an absolute center (the player's current spot)
+            // with a wide radius so the motion is unmistakable. Setting absolute
+            // positions avoids the tiny oscillation a += accumulator produced.
+            const c = player.position;
+            const center = { x: c.x, y: c.y, z: c.z };
+            const RADIUS = 300; // ~3 m
+            let angle = 0;
+            npcWalkTimer = setInterval(() => {
+                angle += 0.05;
+                for (let i = 0; i < npcs.length; i++) {
+                    const phase = angle + (i * 2 * Math.PI) / npcs.length;
+                    // Vector3.set() — assigning pos.x/.y/.z directly only writes a
+                    // JS shadow (x/y/z are SetNativeDataProperty), leaving the
+                    // underlying C++ vector unchanged, so the move would be a no-op.
+                    const pos = npcs[i].position;
+                    pos.set(center.x + Math.cos(phase) * RADIUS, center.y + Math.sin(phase) * RADIUS, center.z);
+                    npcs[i].position = pos;
+                }
+            }, 50);
+            player.sendChat(`[DEV] Walking ${npcs.length} NPC(s) in a circle (run /walknpcs again to stop)`);
+            break;
+        }
+
+        case "clearnpcs": {
+            if (npcWalkTimer) {
+                clearInterval(npcWalkTimer);
+                npcWalkTimer = null;
+            }
+            for (const npc of npcs) {
+                npc.destroy();
+            }
+            const n = npcs.length;
+            npcs.length = 0;
+            player.sendChat(`[DEV] Despawned ${n} NPC(s)`);
             break;
         }
 

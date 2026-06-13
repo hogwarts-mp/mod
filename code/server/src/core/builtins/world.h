@@ -8,12 +8,15 @@
 #include "events.h"
 #include "human.h"
 
+#include "core/modules/human.h"
+
 #include "shared/modules/mod.hpp"
 #include "shared/rpc/chat_message.h"
 #include "shared/rpc/set_weather.h"
 
 #include "core/server.h"
 #include <core_modules.h>
+#include <world/server.h>
 
 #include <logging/logger.h>
 
@@ -28,6 +31,34 @@ namespace HogwartsMP::Scripting {
             if (human) {
                 human->SendChat(message);
             }
+        }
+
+        // World.spawnHuman(x, y, z) -> Human
+        // Spawns a server-owned human (NPC) at a world position and returns its
+        // Human handle. Clients render it via the student-proxy path like any
+        // other player. Despawn with human.destroy().
+        static void JsSpawnHuman(const v8::FunctionCallbackInfo<v8::Value> &info) {
+            auto *isolate = info.GetIsolate();
+            auto ctx      = isolate->GetCurrentContext();
+            if (info.Length() < 3 || !info[0]->IsNumber() || !info[1]->IsNumber() || !info[2]->IsNumber()) {
+                isolate->ThrowException(v8::Exception::TypeError(v8pp::to_v8(isolate, "spawnHuman(x, y, z) requires 3 numbers")));
+                return;
+            }
+            const float x = static_cast<float>(info[0]->NumberValue(ctx).FromMaybe(0.0));
+            const float y = static_cast<float>(info[1]->NumberValue(ctx).FromMaybe(0.0));
+            const float z = static_cast<float>(info[2]->NumberValue(ctx).FromMaybe(0.0));
+
+            auto *server = Server::_serverRef;
+            if (!server) {
+                return;
+            }
+            auto *netEngine = server->GetNetworkingEngine();
+            auto srv        = server->GetWorldEngine();
+            if (!netEngine || !srv) {
+                return;
+            }
+            auto e = Core::Modules::Human::Spawn(netEngine->GetNetworkServer(), srv, x, y, z);
+            info.GetReturnValue().Set(v8pp::class_<Human>::create_object(isolate, e));
         }
 
         static void SetWeather(std::string weatherSetName) {
@@ -104,7 +135,14 @@ namespace HogwartsMP::Scripting {
             v8pp::module worldModule(isolate);
             worldModule.function("broadcastMessage", &World::BroadcastMessage);
             worldModule.function("sendChatMessage", &World::SendChatMessage);
-            global->Set(ctx, v8pp::to_v8(isolate, "World"), worldModule.new_instance()).Check();
+            auto worldObj = worldModule.new_instance();
+            // spawnHuman needs the isolate + returns a wrapped object, so it's a
+            // raw FunctionTemplate set on the module object rather than a typed
+            // v8pp function.
+            worldObj->Set(ctx, v8pp::to_v8(isolate, "spawnHuman"),
+                          v8::FunctionTemplate::New(isolate, &World::JsSpawnHuman)->GetFunction(ctx).ToLocalChecked())
+                .Check();
+            global->Set(ctx, v8pp::to_v8(isolate, "World"), worldObj).Check();
 
             v8pp::module envModule(isolate);
             envModule.function("setWeather", &World::SetWeather);

@@ -8,6 +8,7 @@
 
 #include <logging/logger.h>
 #include <world/modules/base.hpp>
+#include <world/server.h>
 
 namespace HogwartsMP::Scripting {
 
@@ -59,7 +60,14 @@ namespace HogwartsMP::Scripting {
     }
 
     void Human::Destroy() {
-        // Nothing should happen here, as the player entity is destroyed by the game and network systems
+        // Real players (owner != 0) are torn down by the network/game systems on
+        // disconnect — leave those alone. Server-owned entities (NPCs spawned via
+        // World.spawnHuman, owner 0) must be removed explicitly; RemoveEntity
+        // fires the despawn to every client streaming them.
+        const auto streamable = _ent.try_get<Framework::World::Modules::Base::Streamable>();
+        if (streamable && streamable->owner == 0) {
+            Framework::World::ServerEngine::RemoveEntity(_ent);
+        }
     }
 
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
