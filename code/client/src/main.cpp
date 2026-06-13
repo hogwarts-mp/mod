@@ -40,6 +40,7 @@ char *GetNarrowWinMainCommandLine() {
         opts.useImGUI     = true;
         opts.gameName     = "Hogwarts Legacy";
         opts.gameVersion  = HogwartsMP::Version::rel;
+        opts.modVersion   = "0.1.0"; // non-empty required: handshake clientVersion must pass the server's Valid() check
         opts.rendererOptions.backend = Framework::Graphics::RendererBackend::BACKEND_D3D_12;
         opts.rendererOptions.platform = Framework::Graphics::PlatformBackend::PLATFORM_WIN32;
 
