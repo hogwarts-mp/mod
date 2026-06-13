@@ -148,8 +148,9 @@ namespace {
 
     struct StudentRef {
         AActor *actor;
-        int32_t objectIndex;  // GUObjectArray slot (UObjectBase::GetUniqueID)
-        int32_t serialNumber; // FUObjectItem serial at spawn (0 = none allocated yet)
+        int32_t objectIndex;   // GUObjectArray slot (UObjectBase::GetUniqueID)
+        int32_t serialNumber;  // FUObjectItem serial at spawn (0 = none allocated yet)
+        UObjectBase *skinComp; // lifetime tied to actor
     };
     // Game thread only; the render thread sees the size via g_activeCount.
     std::vector<StudentRef> g_students;
@@ -349,7 +350,7 @@ namespace {
 
     // ── The spawn itself ─────────────────────────────────────────────────────
 
-    AActor *SpawnStudent(const FVector &pos, float yawDeg, bool female = false, int house = 0) {
+    AActor *SpawnStudent(const FVector &pos, float yawDeg, bool female = false, int house = 0, UObjectBase **outSkinComp = nullptr) {
         auto *cls = reinterpret_cast<UClass *>(find_uobject("Class /Script/Phoenix.Biped_Character"));
         if (!cls) {
             Log()->error("Biped_Character class not found");
@@ -589,6 +590,10 @@ namespace {
             Log()->warn("Idle AnimSequence not found — student will hold ref pose");
         }
 
+        if (outSkinComp) {
+            *outSkinComp = skinComp;
+        }
+
         Log()->info("Student spawned at ({:.0f}, {:.0f}, {:.0f})", pos.X, pos.Y, pos.Z);
         return finalize(actor);
     }
@@ -619,9 +624,10 @@ namespace {
             const FVector pos{loc.X + std::cos(rad) * kDistance, loc.Y + std::sin(rad) * kDistance, loc.Z};
             // Alternate gender and cycle houses (spawn 8 to see all four houses
             // in both genders); +180 so the students face back toward the player.
-            const bool female = (i % 2 == 1);
-            const int house   = (i / 2) % 4;
-            if (auto *actor = SpawnStudent(pos, rot.Yaw + offsetDeg + 180.f, female, house)) {
+            const bool female     = (i % 2 == 1);
+            const int house       = (i / 2) % 4;
+            UObjectBase *skinComp = nullptr;
+            if (auto *actor = SpawnStudent(pos, rot.Yaw + offsetDeg + 180.f, female, house, &skinComp)) {
                 auto *obj         = reinterpret_cast<UObjectBase *>(actor);
                 const auto index  = static_cast<int32_t>(obj->GetUniqueID());
                 int32_t serial    = 0;
@@ -630,7 +636,7 @@ namespace {
                         serial = item->GetSerialNumber();
                     }
                 }
-                g_students.push_back({actor, index, serial});
+                g_students.push_back({actor, index, serial, skinComp});
                 ++spawned;
             }
         }
@@ -694,5 +700,33 @@ namespace HogwartsMP::Core::StudentProxy {
 
     size_t ActiveCount() {
         return g_activeCount.load(std::memory_order_relaxed);
+    }
+
+    AActor *FirstActive() {
+        for (const auto &ref : g_students) {
+            if (auto *actor = ResolveAlive(ref)) {
+                return actor;
+            }
+        }
+        return nullptr;
+    }
+
+    UObjectBase *FirstActiveSkin() {
+        for (const auto &ref : g_students) {
+            if (ResolveAlive(ref)) {
+                return ref.skinComp;
+            }
+        }
+        return nullptr;
+    }
+
+    AActor *SpawnProxy(float x, float y, float z, float yawDeg, Appearance appearance, UObjectBase **outSkinComp) {
+        return SpawnStudent({x, y, z}, yawDeg, appearance.female, std::clamp(appearance.house, 0, 3), outSkinComp);
+    }
+
+    void DestroyProxy(AActor *actor) {
+        if (actor && GWorld && *GWorld && UWorld__DestroyActor) {
+            UWorld__DestroyActor(*GWorld, actor, false, true);
+        }
     }
 } // namespace HogwartsMP::Core::StudentProxy

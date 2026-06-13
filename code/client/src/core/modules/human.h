@@ -9,10 +9,25 @@
 
 #include <sdk/entities/uplayer.h>
 
+#include <cstdint>
+
+class AActor;
+class UObjectBase;
+
 namespace HogwartsMP::Core::Modules {
     struct Human {
         struct Tracking {
             SDK::UPlayer *player = nullptr;
+        };
+
+        // Remote-player avatar: a student proxy spawned on entity creation.
+        // actorIndex guards the pointer against GC slot reuse (cf.
+        // StudentProxy::ResolveAlive). skin is the head/hands component the
+        // outfit is master-posed to (kept for anim / future mount handling).
+        struct Avatar {
+            AActor *actor = nullptr;
+            int32_t actorIndex = -1;
+            UObjectBase *skin = nullptr;
         };
 
         struct Interpolated {
