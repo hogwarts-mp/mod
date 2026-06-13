@@ -1,12 +1,15 @@
 #include "human.h"
 
 #include "world/modules/base.hpp"
+#include "world/types/streaming.hpp"
 
 #include "shared/messages/human/human_despawn.h"
 #include "shared/messages/human/human_self_update.h"
 #include "shared/messages/human/human_spawn.h"
 #include "shared/messages/human/human_update.h"
 #include "shared/modules/human_sync.hpp"
+
+#include <logging/logger.h>
 
 #include <flecs.h>
 
@@ -58,6 +61,36 @@ namespace HogwartsMP::Core::Modules {
             net->Send(humanUpdate, guid);
             return true;
         };
+    }
+
+    flecs::entity Human::Spawn(Framework::Networking::NetworkServer *net, std::shared_ptr<Framework::World::ServerEngine> srv, float x, float y, float z) {
+        // Anonymous entity (empty name) — a named CreateEntity is lookup-or-create
+        // in flecs, so a fixed name would return the SAME entity every call and
+        // each spawn would just relocate the first NPC.
+        auto e = srv->CreateEntity();
+
+        Framework::World::Archetypes::StreamingFactory factory;
+        factory.SetupServer(e, 0 /* server-owned, no peer */);
+
+        // Stay server-owned: AssignEntityOwnership would otherwise hand this
+        // owner-0 entity to the nearest client, which then echoes its stale
+        // client-side transform back every tick (same lesson as the broom bot).
+        auto &streamable               = e.ensure<Framework::World::Modules::Base::Streamable>();
+        streamable.assignOwnerManually = true;
+
+        Create(net, e);
+
+        auto &tr = e.ensure<Framework::World::Modules::Base::Transform>();
+        tr.pos   = {x, y, z};
+
+        // Wake it so the streamer picks it up — a freshly created server entity
+        // that nothing touches per-tick can otherwise stay dormant and never
+        // stream to clients (the broom bot only streamed because its orbit
+        // system modified it every frame).
+        srv->WakeEntity(e);
+
+        Framework::Logging::GetLogger("Human")->debug("Spawned NPC entity {} at ({}, {}, {})", e.id(), x, y, z);
+        return e;
     }
 
     void Human::SetupMessages(std::shared_ptr<Framework::World::ServerEngine> srv, Framework::Networking::NetworkServer *net) {
