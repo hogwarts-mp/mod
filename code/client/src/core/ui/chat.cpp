@@ -25,7 +25,8 @@ namespace HogwartsMP::Core::UI {
         }
 
         if (gApplication->GetInput()->IsKeyPressed(FW_KEY_RETURN) && !_isFocused) {
-            _isFocused = true;
+            _isFocused            = true;
+            _awaitingEnterRelease = true; // the opening Enter is held across frames; don't let it submit
             gApplication->LockControls(true);
             if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
                 ImGui::SetScrollHereY(1.0f);
@@ -36,7 +37,16 @@ namespace HogwartsMP::Core::UI {
         if (_isFocused) {
             ImGui::SetNextItemWidth(ImGui::GetWindowWidth() * 0.95f);
             ImGui::SetKeyboardFocusHere(0);
-            if (ImGui::InputText("##chatinput", _inputText, sizeof(_inputText), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            const bool submitted = ImGui::InputText("##chatinput", _inputText, sizeof(_inputText), ImGuiInputTextFlags_EnterReturnsTrue);
+            if (_awaitingEnterRelease) {
+                // Ignore submits until the Enter that opened the box is released
+                // (ImGui IO, so it's frame-timing independent). Otherwise that
+                // same held keypress closes the box immediately = the flicker.
+                if (!ImGui::IsKeyDown(ImGuiKey_Enter) && !ImGui::IsKeyDown(ImGuiKey_KeypadEnter)) {
+                    _awaitingEnterRelease = false;
+                }
+            }
+            else if (submitted) {
                 _isFocused = false;
                 if (strlen(_inputText)) {
                     onMessageSentProc(_inputText);
