@@ -28,6 +28,7 @@ namespace HogwartsMP::Core::UI {
         OnMessageSentProc onMessageSentProc {};
         bool _newMsgArrived = false;
         bool _isFocused     = false;
+        bool _awaitingEnterRelease = false; // block submit until the opening Enter is released (avoids open->instant-close)
         std::vector<std::string> _chatMessages;
         char _inputText[1024] {};
     };
