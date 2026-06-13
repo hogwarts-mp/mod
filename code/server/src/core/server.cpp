@@ -50,9 +50,14 @@ namespace HogwartsMP {
             // Create the networked human entity
             Core::Modules::Human::Create(net, player);
 
+            // The framework's default streamer range is 100 units — ~1 m in
+            // Hogwarts' cm scale, so nothing more than a step away ever streams.
+            // Use a game-sized range (500 m) so other players/NPCs are visible.
+            auto &streamer = player.ensure<Framework::World::Modules::Base::Streamer>();
+            streamer.range = 50000.f;
+
             // Broadcast chat message
-            const auto st  = player.try_get<Framework::World::Modules::Base::Streamer>();
-            const auto msg = fmt::format("Player {} has joined the session!", st->nickname);
+            const auto msg = fmt::format("Player {} has joined the session!", streamer.nickname);
             BroadcastChatMessage(msg);
 
             Scripting::Human::EventPlayerConnected(player);
