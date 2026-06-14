@@ -92,7 +92,7 @@ long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT 
         if(opts.rendererOptions.d3d12.commandQueue && opts.rendererOptions.d3d12.device) {
             opts.rendererOptions.d3d12.swapchain = pSwapChain;
 
-            if (app->RenderInit() != Framework::Integrations::Client::ClientError::CLIENT_NONE) {
+            if (!app->RenderInit()) {
                 Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->error("Rendering subsystems failed to initialize");
             }
 

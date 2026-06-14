@@ -2,7 +2,6 @@ set(HOGWARTSMP_SERVER_FILES
     src/main.cpp
     src/core/server.cpp
 
-    src/core/builtins/entity.cpp
     src/core/builtins/events.cpp
     src/core/builtins/human.cpp
 

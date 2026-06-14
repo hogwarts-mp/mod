@@ -1,13 +1,11 @@
 #pragma once
 
-#include <flecs.h>
+#include "shared/game/human.h"
 
-#include "core/application.h"
-
-#include <world/modules/base.hpp>
 #include <utils/interpolator.h>
 
-#include <sdk/entities/uplayer.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <cstdint>
 
@@ -15,51 +13,60 @@ class AActor;
 class UObjectBase;
 
 namespace HogwartsMP::Core::Modules {
-    struct Human {
-        struct Tracking {
-            SDK::UPlayer *player = nullptr;
-        };
+    // Client-side human replica. The server creates a Shared::HumanEntity; the client reconstructs the
+    // same type id into a ClientHuman. On construction it binds the local player (when we own it) or
+    // spawns a student proxy (remote players and server NPCs). Per frame it pushes the local player's
+    // transform upstream, or interpolates the proxy toward the replicated transform.
+    class ClientHuman final: public Shared::HumanEntity {
+      public:
+        void OnConstructed() override;
+        void DeallocReplica(MafiaNet::Connection_RM3 *sourceConnection) override;
 
-        // Remote-player avatar: a student proxy spawned on entity creation.
-        // actorIndex guards the pointer against GC slot reuse (cf.
-        // StudentProxy::ResolveAlive). skin is the head/hands component the
-        // outfit is master-posed to (kept for anim / future mount handling).
-        struct Avatar {
-            AActor *actor = nullptr;
-            int32_t actorIndex = -1;
-            UObjectBase *skin = nullptr;
-        };
+        void Update(float tickInterval);
 
-        struct Interpolated {
-            Framework::Utils::Interpolator interpolator = {};
-        };
+        bool IsLocal() const {
+            return _isLocal;
+        }
 
-        struct LocalPlayer {
-            [[maybe_unused]] char _unused;
-        };
+      private:
+        void SpawnProxy();
+        void UpdateLocal(float tickInterval);
+        void UpdateRemote(float tickInterval);
 
-        struct HumanData {
-            // todo
-            char _unused;
-        };
+        bool _isLocal = false;
 
-        Human(flecs::world &world);
+        // Remote avatar: a student proxy. actorIndex guards the pointer against GC slot reuse (cf.
+        // StudentProxy::ResolveAlive). skin is the head/hands component kept for anim/mount handling.
+        AActor *_actor      = nullptr;
+        int32_t _actorIndex = -1;
+        UObjectBase *_skin  = nullptr;
 
-        static void Create(flecs::entity e, uint64_t spawnProfile);
+        Framework::Utils::Interpolator _interpolator = {};
+        // Last replicated transform we set up an interpolation leg toward, so a fresh packet is
+        // detected by comparison (there is no per-update callback).
+        glm::vec3 _lastTarget    = glm::vec3(0.0f);
+        glm::quat _lastTargetRot = glm::identity<glm::quat>();
+        bool _hasTarget          = false;
+    };
 
-        static void SetupLocalPlayer(Application *app, flecs::entity e);
+    // Owns the client-side Human type registration and the per-frame update fan-out, plus a pointer to
+    // the local player's replica (set when an owned ClientHuman constructs).
+    class Human {
+      public:
+        // Register ClientHuman with the EntityRegistry under the shared type name. Call once at init.
+        static void Register();
 
-        static void Update(flecs::entity e);
+        // Drive every ClientHuman's per-frame update. No-op until replication is active.
+        static void UpdateAll(float tickInterval);
 
-        static void Remove(flecs::entity e);
+        static void SetLocal(ClientHuman *human) {
+            _local = human;
+        }
+        static ClientHuman *GetLocal() {
+            return _local;
+        }
 
-        static void SetupMessages(Application *app);
-
-        static void UpdateTransform(flecs::entity);
-
-        static flecs::query<Tracking> findAllHumans;
-    
-    //private:
-        //static void InitRPCs(Application *app);
+      private:
+        static inline ClientHuman *_local = nullptr;
     };
 } // namespace HogwartsMP::Core::Modules

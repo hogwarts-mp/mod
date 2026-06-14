@@ -17,18 +17,10 @@
 #include "states/session_disconnection.h"
 #include "states/states.h"
 
-#include "shared/modules/human_sync.hpp"
-#include "shared/modules/mod.hpp"
-
-#include "shared/rpc/chat_message.h"
-
-#include "world/game_rpc/set_transform.h"
-
 #include "modules/human.h"
 
 #include "external/imgui/widgets/corner_text.h"
 
-#include "shared/modules/mod.hpp"
 #include "shared/rpc/set_weather.h"
 #include "shared/version.h"
 
@@ -72,32 +64,16 @@ namespace HogwartsMP::Core {
         _console          = std::make_shared<UI::Console>(_commandProcessor);
         _chat             = std::make_shared<UI::Chat>();
 
+        // Outgoing chat goes through the framework's built-in chat (server resolves the sender).
         _chat->SetOnMessageSentCallback([this](const std::string &msg) {
-            const auto net = gApplication->GetNetworkingEngine()->GetNetworkClient();
-
-            HogwartsMP::Shared::RPC::ChatMessage chatMessage {};
-            chatMessage.FromParameters(msg);
-            net->SendRPC(chatMessage, MafiaNet::UNASSIGNED_RAKNET_GUID);
+            SendChatMessage(msg);
         });
 
         // setup debug routines
         _devFeatures.Init();
 
-        // Register client modules (sync)
-        GetWorldEngine()->GetWorld()->import <Shared::Modules::Mod>();
-        GetWorldEngine()->GetWorld()->import <Shared::Modules::HumanSync>();
-
-        // Register client modules
-        GetWorldEngine()->GetWorld()->import <Modules::Human>();
-
-        GetWorldEngine()->SetOnEntityDestroyCallback([](flecs::entity e) {
-            const auto ekind = e.try_get<Shared::Modules::Mod::EntityKind>();
-            switch (ekind->kind) {
-                case Shared::Modules::Mod::MOD_PLAYER: Core::Modules::Human::Remove(e); break;
-            }
-
-            return true;
-        });
+        // Register the client-side Human network type (reconstructs server HumanEntity into ClientHuman).
+        Core::Modules::Human::Register();
 
         InitNetworkingMessages();
     }
@@ -154,6 +130,10 @@ namespace HogwartsMP::Core {
         if (_stateMachine) {
             _stateMachine->Update();
         }
+
+        // Drive replicated humans: push the local player's transform upstream and interpolate remote
+        // proxies. No-op until replication is active.
+        Core::Modules::Human::UpdateAll(_tickInterval);
 
         // If we don't have the local player yet, we try to grab it at each tick until we have it
         // This should be part of a hook "once map loaded" or "once local player created"
@@ -223,61 +203,42 @@ namespace HogwartsMP::Core {
     void Application::PostRender() {}
 
     void Application::InitNetworkingMessages() {
-        SetOnConnectionFinalizedCallback([this](flecs::entity newPlayer, float tickInterval) {
-            _tickInterval = tickInterval;
-            _localPlayer = newPlayer;
-            _stateMachine->RequestNextState(States::StateIds::SessionConnected);
-            Core::Modules::Human::SetupLocalPlayer(this, newPlayer);
-
-            Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Connection established!");
-        });
-
-        SetOnConnectionClosedCallback([this]() {
-            Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Connection lost!");
-            _stateMachine->RequestNextState(States::StateIds::SessionDisconnection);
-        });
-
+        // The local player's avatar arrives through replication; binding the local pawn happens in
+        // ClientHuman::OnConstructed when we own the entity, so there's nothing entity-specific here.
         InitRPCs();
-
-        Modules::Human::SetupMessages(this);
 
         Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Networking messages registered!");
     }
 
-    uint64_t Application::GetLocalPlayerID() {
-        if (!_localPlayer)
-            return 0;
+    void Application::OnConnectionFinalized(float serverTickRate) {
+        _tickInterval = serverTickRate;
+        _stateMachine->RequestNextState(States::StateIds::SessionConnected);
 
-        const auto sid = _localPlayer.try_get<Framework::World::Modules::Base::ServerID>();
-        return sid->id;
+        Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Connection established!");
+    }
+
+    void Application::OnConnectionClosed() {
+        Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Connection lost!");
+        _stateMachine->RequestNextState(States::StateIds::SessionDisconnection);
+    }
+
+    // Chat lines from the server are pushed to the chat UI.
+    void Application::OnChatMessageReceived(const std::string &text) {
+        _chat->AddMessage(text);
+        Framework::Logging::GetLogger("chat")->trace(text);
+    }
+
+    uint64_t Application::GetLocalPlayerID() {
+        auto *local = Core::Modules::Human::GetLocal();
+        return local ? local->GetNetworkID() : 0;
     }
 
     void Application::InitRPCs() {
         const auto net = GetNetworkingEngine()->GetNetworkClient();
 
-        net->RegisterRPC<Shared::RPC::ChatMessage>([this](MafiaNet::RakNetGUID guid, Shared::RPC::ChatMessage *chatMessage) {
-            if (!chatMessage->Valid())
-                return;
-            _chat->AddMessage(chatMessage->GetText());
-
-            Framework::Logging::GetLogger("chat")->trace(chatMessage->GetText());
-        });
-        net->RegisterGameRPC<Framework::World::RPC::SetTransform>([this](MafiaNet::RakNetGUID guid, Framework::World::RPC::SetTransform *msg) {
-            if (!msg->Valid()) {
-                return;
-            }
-            const auto e = GetWorldEngine()->GetEntityByServerID(msg->GetServerID());
-            if (!e.is_alive()) {
-                return;
-            }
-            const auto ekind = e.try_get<Shared::Modules::Mod::EntityKind>();
-            switch (ekind->kind) {
-                case Shared::Modules::Mod::MOD_PLAYER: Core::Modules::Human::UpdateTransform(e); break;
-            }
-        });
-
-        net->RegisterRPC<Shared::RPC::SetWeather>([this](MafiaNet::RakNetGUID guid, Shared::RPC::SetWeather *msg) {
-            Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Sync Weather!");
+        net->RegisterRPC<Shared::RPC::SetWeather>([this](const Shared::RPC::SetWeather &msg, MafiaNet::Packet *) {
+            // TODO: apply the environment state to the game (season/time/weather).
+            Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Sync Weather! ({}, season {})", msg.data.weather, msg.data.season);
         });
     }
 

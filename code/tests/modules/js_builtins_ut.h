@@ -35,7 +35,7 @@ MODULE(js_builtins, {
                 v8::Local<v8::Function> fn = tmpl->GetFunction(context).ToLocalChecked();
                 global->Set(context, v8pp::to_v8(isolate, name), fn).Check();
             };
-            exposeClassPrototype("EntityImpl", HogwartsMP::Scripting::Entity::GetClass(isolate).class_function_template());
+            exposeClassPrototype("EntityImpl", Framework::Scripting::Builtins::Entity::GetClass(isolate).class_function_template());
             exposeClassPrototype("HumanImpl", HogwartsMP::Scripting::Human::GetClass(isolate).class_function_template());
 
             const auto evalBool = [&](const char *src) -> bool {

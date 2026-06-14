@@ -49,7 +49,7 @@ namespace HogwartsMP::Core::States {
         });
 
         if (gApplication->GetInput()->IsKeyPressed(FW_KEY_F9)) {
-            gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
+            (void)gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
         }
 
         return false;

@@ -30,7 +30,6 @@ namespace HogwartsMP::Core {
         friend class DevFeatures;
         void InitNetworkingMessages();
         void InitRPCs();
-        flecs::entity _localPlayer;
         float _tickInterval = 0.01667f;
 
         std::shared_ptr<Framework::Utils::States::Machine> _stateMachine;
@@ -53,6 +52,11 @@ namespace HogwartsMP::Core {
         void PreShutdown() override;
         void PostUpdate() override;
         void PostRender() override;
+
+        // Networking event hooks (framework dispatches these; no Set*Callback setters anymore).
+        void OnConnectionFinalized(float serverTickRate) override;
+        void OnConnectionClosed() override;
+        void OnChatMessageReceived(const std::string &text) override;
 
         float GetTickInterval() const {
             return _tickInterval;

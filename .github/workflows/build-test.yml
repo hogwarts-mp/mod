@@ -20,9 +20,9 @@ concurrency:
 env:
   # The mod cannot build standalone: CI checks out the MafiaHub Framework and
   # nests this repository inside code/projects/. Pinned to the framework
-  # commit this code was ported against (develop @ v7.0.4); scheduled runs
+  # commit this code was ported against; scheduled runs
   # track develop instead to surface upstream API drift.
-  FRAMEWORK_REF: ${{ github.event_name == 'schedule' && 'develop' || '314b8bd90bcd8e5a1c993f77935af2b1846e5be7' }}
+  FRAMEWORK_REF: ${{ github.event_name == 'schedule' && 'develop' || '494316d2638dc8aa194691bd771fdf6bab942484' }}
 
 jobs:
   build-test:
