@@ -4,26 +4,18 @@
 #include <v8pp/class.hpp>
 #include <v8pp/convert.hpp>
 
-#include "entity.h"
+#include <scripting/builtins/player.h>
 
-#include "shared/modules/human_sync.hpp"
-
-#include <fmt/format.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 
 namespace HogwartsMP::Scripting {
-    class Human final: public Entity {
+    // A player avatar exposed to JS. Derives the framework Player handle (id/position/rotation/kick,
+    // all resolved from the live NetworkEntity by NetworkID) and adds the Hogwarts-specific surface.
+    class Human final: public Framework::Scripting::Builtins::Player {
       public:
-        Human(flecs::entity_t ent): Entity(ent) {
-            const auto humanData = _ent.try_get<Shared::Modules::HumanSync::UpdateData>();
-            if (!humanData) {
-                throw std::runtime_error(fmt::format("Entity handle '{}' is not a Human!", ent));
-            }
-        }
-
-        Human(flecs::entity ent): Human(ent.id()) {}
+        Human(uint64_t networkId): Framework::Scripting::Builtins::Player(networkId) {}
 
         std::string ToString() const override;
 
@@ -33,9 +25,9 @@ namespace HogwartsMP::Scripting {
 
         void Destroy();
 
-        static void EventPlayerConnected(flecs::entity e);
-        static void EventPlayerDisconnected(flecs::entity e);
-        static void EventPlayerDied(flecs::entity e);
+        static void EventPlayerConnected(uint64_t networkId);
+        static void EventPlayerDisconnected(uint64_t networkId);
+        static void EventPlayerDied(uint64_t networkId);
 
         static void Register(v8::Isolate *isolate, v8::Local<v8::Object> global);
         static v8pp::class_<Human> &GetClass(v8::Isolate *isolate);

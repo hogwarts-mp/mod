@@ -15,9 +15,7 @@
 
 #include <cppfs/FileHandle.h>
 #include <cppfs/fs.h>
-#include <shared/modules/mod.hpp>
 
-#include "shared/rpc/chat_message.h"
 #include "shared/rpc/set_weather.h"
 
 #include "modules/human.h"
@@ -42,7 +40,7 @@ namespace HogwartsMP::Core {
     void DevFeatures::Shutdown() {}
 
     void DevFeatures::Disconnect() {
-        gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
+        (void)gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
     }
 
     void DevFeatures::CrashMe() {
@@ -117,9 +115,7 @@ namespace HogwartsMP::Core {
             [this](const cxxopts::ParseResult &result) {
                 const auto net = gApplication->GetNetworkingEngine()->GetNetworkClient();
                 if (net->GetConnectionState() == Framework::Networking::PeerState::CONNECTED) {
-                    HogwartsMP::Shared::RPC::ChatMessage chatMessage {};
-                    chatMessage.FromParameters(result["msg"].as<std::string>());
-                    net->SendRPC(chatMessage, MafiaNet::UNASSIGNED_RAKNET_GUID);
+                    gApplication->SendChatMessage(result["msg"].as<std::string>());
                 }
             },
             "sends a chat message");

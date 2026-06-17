@@ -2,22 +2,17 @@
 
 #include "human.h"
 
-#include <flecs.h>
-
-#include <logging/logger.h>
-
-#include <world/modules/base.hpp>
-
+#include "core/application.h"
 #include "core/student_proxy.h"
 #include "core/ue4_natives.h"
 #include "core/ue4_reflection.h"
 
-#include "shared/messages/human/human_despawn.h"
-#include "shared/messages/human/human_self_update.h"
-#include "shared/messages/human/human_spawn.h"
-#include "shared/messages/human/human_update.h"
-#include "shared/modules/human_sync.hpp"
-#include "shared/modules/mod.hpp"
+#include <core_modules.h>
+#include <logging/logger.h>
+#include <networking/replication/entity_registry.h>
+#include <networking/replication/replication_manager.h>
+
+#include <sdk/entities/uplayer.h>
 
 #include <cmath>
 
@@ -49,19 +44,19 @@ namespace {
     };
 
     Vec3f GetActorPos(void *actor) {
-        Vec3f loc{};
+        Vec3f loc {};
         CallUFunction(actor, "K2_GetActorLocation", &loc);
         return loc;
     }
 
     Rot3f GetActorRot(void *actor) {
-        Rot3f rot{};
+        Rot3f rot {};
         CallUFunction(actor, "K2_GetActorRotation", &rot);
         return rot;
     }
 
-    // UE rotator (degrees) <-> quaternion, ported from FRotator::Quaternion()
-    // and FQuat::Rotator() so axis/sign conventions match the engine exactly.
+    // UE rotator (degrees) <-> quaternion, ported from FRotator::Quaternion() and FQuat::Rotator() so
+    // axis/sign conventions match the engine exactly.
     glm::quat QuatFromRotator(const Rot3f &r) {
         constexpr float kDegToRad = glm::pi<float>() / 180.f;
         const float sp = std::sin(r.Pitch * kDegToRad * 0.5f), cp = std::cos(r.Pitch * kDegToRad * 0.5f);
@@ -89,7 +84,7 @@ namespace {
         const float singularity    = q.z * q.x - q.w * q.y;
         const float yawY           = 2.f * (q.w * q.z + q.x * q.y);
         const float yawX           = 1.f - 2.f * (q.y * q.y + q.z * q.z);
-        Rot3f r{};
+        Rot3f r {};
         r.Yaw = std::atan2(yawY, yawX) * kRadToDeg;
         if (singularity < -kThreshold) {
             r.Pitch = -90.f;
@@ -111,238 +106,135 @@ namespace {
             Vec3f DestLocation;
             Rot3f DestRotation;
             bool ReturnValue;
-        } params{pos, rot, false};
+        } params {pos, rot, false};
         CallUFunction(actor, "K2_TeleportTo", &params);
     }
 } // namespace
 
 namespace HogwartsMP::Core::Modules {
+    using Framework::Networking::Replication::EntityRegistry;
+    using Framework::Networking::Replication::NetworkEntity;
 
-    flecs::query<Human::Tracking> Human::findAllHumans;
-
-    Human::Human(flecs::world &world) {
-        world.module<Human>();
-
-        world.component<Tracking>();
-        world.component<LocalPlayer>();
-        world.component<Interpolated>();
-        world.component<HumanData>();
-        world.component<Avatar>();
-
-        findAllHumans = world.query_builder<Human::Tracking>().build();
-
-        world.system<Tracking, Shared::Modules::HumanSync::UpdateData, LocalPlayer, Framework::World::Modules::Base::Transform>("UpdateLocalPlayer")
-            .each([](flecs::entity e, Tracking &tracking, Shared::Modules::HumanSync::UpdateData &, LocalPlayer &lp, Framework::World::Modules::Base::Transform &tr) {
-                if (!tracking.player) {
-                    return;
-                }
-                // PlayerController can be null transiently (e.g. during the
-                // fast-travel the game runs right after connecting).
-                const auto pc = tracking.player->PlayerController;
-                if (!pc) {
-                    return;
-                }
-                const auto pawn = pc->Pawn;
-                if (!pawn) {
-                    return;
-                }
-                // Read the pawn's WORLD location via the game's own getter —
-                // RootComponent->RelativeLocation is parent-relative, not the
-                // world position, so it stays static while the player moves.
-                const auto worldLoc = GetActorPos(pawn);
-                tr.pos              = {worldLoc.X, worldLoc.Y, worldLoc.Z};
-                tr.rot              = QuatFromRotator(GetActorRot(pawn));
-            });
-
-        world.system<Interpolated, Avatar>("UpdateRemoteHuman").each([](flecs::entity e, Interpolated &interpolated, Avatar &av) {
-            if (e.try_get<LocalPlayer>() != nullptr) {
-                return;
-            }
-            auto *target = AliveActor(av.actor, av.actorIndex);
-            if (!target) {
-                return;
-            }
-            const auto cur    = GetActorPos(target);
-            const auto newPos = interpolated.interpolator.GetPosition()->UpdateTargetValue({cur.X, cur.Y, cur.Z});
-            const auto newRot = interpolated.interpolator.GetRotation()->UpdateTargetValue(QuatFromRotator(GetActorRot(target)));
-            TeleportActor(target, {newPos.x, newPos.y, newPos.z}, RotatorFromQuat(newRot));
-        });
+    void ClientHuman::OnConstructed() {
+        // Reference() runs before DeserializeConstruction, so the manager (and thus IsOwner) is valid
+        // here; ownerGUID has already been read off the construction snapshot.
+        _isLocal = IsOwner();
+        if (_isLocal) {
+            // The local player's pawn already exists in-game; nothing to spawn. We push its transform
+            // upstream each frame (the owned entity serializes to the server automatically).
+            Human::SetLocal(this);
+            return;
+        }
+        SpawnProxy();
     }
 
-    void Human::Create(flecs::entity e, uint64_t spawnProfile) {
-        e.ensure<Core::Modules::Human::Tracking>();
+    void ClientHuman::SpawnProxy() {
+        _interpolator.GetPosition()->SetCompensationFactor(1.5f);
 
-        auto &interp = e.ensure<Interpolated>();
-        interp.interpolator.GetPosition()->SetCompensationFactor(1.5f);
-
-        e.add<HumanData>();
-        e.add<Shared::Modules::Mod::EntityKind>();
-        e.set<Shared::Modules::Mod::EntityKind>({Shared::Modules::Mod::MOD_PLAYER});
-        e.add<Shared::Modules::HumanSync::UpdateData>();
-
-        // Remote avatar: a student proxy at the entity's last known position.
-        const auto tr = e.try_get<Framework::World::Modules::Base::Transform>();
-        const float x = tr ? static_cast<float>(tr->pos.x) : 0.f;
-        const float y = tr ? static_cast<float>(tr->pos.y) : 0.f;
-        const float z = tr ? static_cast<float>(tr->pos.z) : 0.f;
-
-        // TODO(appearance sync): derive gender/house from the wire once the
-        // HumanSpawn message carries appearance; defaults to Gryffindor male.
-        const StudentProxy::Appearance appearance{};
+        // TODO(appearance sync): derive gender/house from spawnProfile once it carries appearance;
+        // defaults to Gryffindor male.
+        const StudentProxy::Appearance appearance {};
         UObjectBase *skin = nullptr;
-        auto *actor       = StudentProxy::SpawnProxy(x, y, z, 0.f, appearance, &skin);
+        auto *actor       = StudentProxy::SpawnProxy(position.x, position.y, position.z, 0.f, appearance, &skin);
         if (!actor) {
             Framework::Logging::GetLogger("Human")->error("Remote avatar spawn failed");
             return;
         }
-        auto &av      = e.ensure<Avatar>();
-        av.actor      = actor;
-        av.actorIndex = ObjectIndex(actor);
-        av.skin       = skin;
+        _actor         = actor;
+        _actorIndex    = ObjectIndex(actor);
+        _skin          = skin;
+        _lastTarget    = position;
+        _lastTargetRot = rotation;
+        _hasTarget     = true;
     }
 
-    void Human::SetupLocalPlayer(Application *, flecs::entity e) {
-        //e.world().defer_begin();
-        e.add<Core::Modules::Human::Tracking>();
-
-        e.add<Shared::Modules::HumanSync::UpdateData>();
-        e.add<Core::Modules::Human::LocalPlayer>();
-        e.add<HumanData>();
-        e.add<Shared::Modules::Mod::EntityKind>();
-        e.set<Shared::Modules::Mod::EntityKind>({Shared::Modules::Mod::MOD_PLAYER});
-        e.add<Framework::World::Modules::Base::Frame>();
-
-        const auto localPlayer = Core::gGlobals.localPlayer;
-
-        if (!localPlayer->PlayerController->Pawn) {
-            Framework::Logging::GetLogger("Human")->error("No pawn found.");
-            Core::gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
-            return;
-        }
-
-        const auto rootComponent = localPlayer->PlayerController->Pawn->RootComponent;
-        if (!rootComponent) {
-            Framework::Logging::GetLogger("Human")->error("No pawn root component");
-            Core::gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
-            return;
-        }
-
-        // Fetch the component only after ALL adds above: every add() moves the
-        // entity to a new archetype table, dangling earlier ensure() refs (the
-        // original code wrote tracking.player through one — it never landed).
-        e.ensure<Core::Modules::Human::Tracking>().player = localPlayer;
-
-        auto es       = e.try_get_mut<Framework::World::Modules::Base::Streamable>();
-        es->modEvents.updateProc = [](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            const auto updateData = e.try_get<Shared::Modules::HumanSync::UpdateData>();
-
-            Shared::Messages::Human::HumanUpdate humanUpdate {};
-            humanUpdate.SetServerID(Framework::World::ClientEngine::GetServerID(e));
-            humanUpdate.SetData(*updateData);
-            peer->Send(humanUpdate, guid);
-            return true;
-        };
-        //e.world().defer_end();
-    }
-
-    void Human::Update(flecs::entity e) {
-        auto av = e.try_get_mut<Avatar>();
-        if (!av) {
-            return;
-        }
-        const auto tr = e.try_get<Framework::World::Modules::Base::Transform>();
-
-        auto *target = AliveActor(av->actor, av->actorIndex);
-        if (!target || !tr) {
-            return;
-        }
-        const auto cur        = GetActorPos(target);
-        const auto curRot     = QuatFromRotator(GetActorRot(target));
-        const glm::vec3 delta = glm::vec3(tr->pos) - glm::vec3{cur.X, cur.Y, cur.Z};
-        const bool farAway    = glm::dot(delta, delta) > 5000.f * 5000.f;
-        auto interp           = e.try_get_mut<Interpolated>();
-        if (interp && !farAway) {
-            interp->interpolator.GetPosition()->SetTargetValue({cur.X, cur.Y, cur.Z}, tr->pos, HogwartsMP::Core::gApplication->GetTickInterval());
-            interp->interpolator.GetRotation()->SetTargetValue(curRot, tr->rot, HogwartsMP::Core::gApplication->GetTickInterval());
+    void ClientHuman::Update(float tickInterval) {
+        if (_isLocal) {
+            UpdateLocal(tickInterval);
         }
         else {
-            // Streaming-in / teleport-sized jumps snap instead of crawling.
-            TeleportActor(target, {static_cast<float>(tr->pos.x), static_cast<float>(tr->pos.y), static_cast<float>(tr->pos.z)}, RotatorFromQuat(tr->rot));
-            if (interp) {
-                interp->interpolator.GetPosition()->SetTargetValue(tr->pos, tr->pos, HogwartsMP::Core::gApplication->GetTickInterval());
-                interp->interpolator.GetRotation()->SetTargetValue(tr->rot, tr->rot, HogwartsMP::Core::gApplication->GetTickInterval());
-            }
+            UpdateRemote(tickInterval);
         }
     }
 
-    void Human::Remove(flecs::entity e) {
-        if (e.try_get<LocalPlayer>() != nullptr) {
+    void ClientHuman::UpdateLocal(float) {
+        const auto localPlayer = Core::gGlobals.localPlayer;
+        if (!localPlayer) {
             return;
         }
-        auto av = e.try_get_mut<Avatar>();
-        if (!av) {
+        // PlayerController can be null transiently (e.g. the fast-travel right after connecting).
+        const auto pc = localPlayer->PlayerController;
+        if (!pc || !pc->Pawn) {
             return;
         }
-        StudentProxy::DestroyProxy(AliveActor(av->actor, av->actorIndex));
-        *av = {};
+        // Read the pawn's WORLD location via the game's own getter — RootComponent->RelativeLocation
+        // is parent-relative, not the world position.
+        const auto worldLoc = GetActorPos(pc->Pawn);
+        position            = {worldLoc.X, worldLoc.Y, worldLoc.Z};
+        rotation            = QuatFromRotator(GetActorRot(pc->Pawn));
     }
 
-    void Human::SetupMessages(Application *app) {
-        const auto net = app->GetNetworkingEngine()->GetNetworkClient();
-        net->RegisterMessage<Shared::Messages::Human::HumanSpawn>(Shared::Messages::ModMessages::MOD_HUMAN_SPAWN, [app](MafiaNet::RakNetGUID guid, Shared::Messages::Human::HumanSpawn *msg) {
-            auto e = app->GetWorldEngine()->GetEntityByServerID(msg->GetServerID());
-            if (!e.is_alive()) {
-                return;
+    void ClientHuman::UpdateRemote(float tickInterval) {
+        auto *target = AliveActor(_actor, _actorIndex);
+        if (!target) {
+            return;
+        }
+        const auto curRaw = GetActorPos(target);
+        const glm::vec3 cur {curRaw.X, curRaw.Y, curRaw.Z};
+        const glm::quat curRot = QuatFromRotator(GetActorRot(target));
+
+        // A fresh replicated transform since the last leg? Set up a new interpolation (or snap on a
+        // teleport-sized jump). Detected by comparison — Deserialize updates position/rotation in
+        // place with no callback.
+        if (!_hasTarget || position != _lastTarget || rotation != _lastTargetRot) {
+            const glm::vec3 delta = position - cur;
+            const bool farAway    = glm::dot(delta, delta) > 5000.f * 5000.f;
+            if (!farAway) {
+                _interpolator.GetPosition()->SetTargetValue(cur, position, tickInterval);
+                _interpolator.GetRotation()->SetTargetValue(curRot, rotation, tickInterval);
             }
-
-            Create(e, msg->GetSpawnProfile());
-        });
-        net->RegisterMessage<Shared::Messages::Human::HumanDespawn>(Shared::Messages::ModMessages::MOD_HUMAN_DESPAWN, [app](MafiaNet::RakNetGUID guid, Shared::Messages::Human::HumanDespawn *msg) {
-            const auto e = app->GetWorldEngine()->GetEntityByServerID(msg->GetServerID());
-            if (!e.is_alive()) {
-                return;
+            else {
+                // Streaming-in / teleport-sized jumps snap instead of crawling.
+                TeleportActor(target, {position.x, position.y, position.z}, RotatorFromQuat(rotation));
+                _interpolator.GetPosition()->SetTargetValue(position, position, tickInterval);
+                _interpolator.GetRotation()->SetTargetValue(rotation, rotation, tickInterval);
             }
+            _lastTarget    = position;
+            _lastTargetRot = rotation;
+            _hasTarget     = true;
+            return;
+        }
 
-            Remove(e);
-        });
-        net->RegisterMessage<Shared::Messages::Human::HumanUpdate>(Shared::Messages::ModMessages::MOD_HUMAN_UPDATE, [app](MafiaNet::RakNetGUID guid, Shared::Messages::Human::HumanUpdate *msg) {
-            const auto e = app->GetWorldEngine()->GetEntityByServerID(msg->GetServerID());
-            if (!e.is_alive()) {
-                return;
-            }
-
-            auto updateData = e.try_get_mut<Shared::Modules::HumanSync::UpdateData>();
-            *updateData     = msg->GetData();
-
-            Update(e);
-        });
-        net->RegisterMessage<Shared::Messages::Human::HumanSelfUpdate>(Shared::Messages::ModMessages::MOD_HUMAN_SELF_UPDATE, [app](MafiaNet::RakNetGUID guid, Shared::Messages::Human::HumanSelfUpdate *msg) {
-            const auto e = app->GetWorldEngine()->GetEntityByServerID(msg->GetServerID());
-            if (!e.is_alive()) {
-                return;
-            }
-
-            auto trackingData = e.try_get_mut<Core::Modules::Human::Tracking>();
-            if (!trackingData) {
-                return;
-            }
-
-            auto frame       = e.try_get_mut<Framework::World::Modules::Base::Frame>();
-            frame->modelHash = msg->GetSpawnProfile();
-        });
+        const auto newPos = _interpolator.GetPosition()->UpdateTargetValue(cur);
+        const auto newRot = _interpolator.GetRotation()->UpdateTargetValue(curRot);
+        TeleportActor(target, {newPos.x, newPos.y, newPos.z}, RotatorFromQuat(newRot));
     }
 
-    void Human::UpdateTransform(flecs::entity e) {
-        auto av = e.try_get_mut<Avatar>();
-        if (!av) {
+    void ClientHuman::DeallocReplica(MafiaNet::Connection_RM3 *) {
+        if (_isLocal) {
+            if (Human::GetLocal() == this) {
+                Human::SetLocal(nullptr);
+            }
+        }
+        else {
+            StudentProxy::DestroyProxy(AliveActor(_actor, _actorIndex));
+        }
+        delete this;
+    }
+
+    void Human::Register() {
+        EntityRegistry::Get().Register<ClientHuman>(Shared::kHumanTypeName);
+    }
+
+    void Human::UpdateAll(float tickInterval) {
+        auto *repl = Framework::CoreModules::GetReplication();
+        if (!repl) {
             return;
         }
-        const auto tr = e.try_get<Framework::World::Modules::Base::Transform>();
-        auto *target  = AliveActor(av->actor, av->actorIndex);
-        if (!target || !tr) {
-            return;
-        }
-        // Hard set (streaming-in / teleport) — skip interpolation.
-        TeleportActor(target, {static_cast<float>(tr->pos.x), static_cast<float>(tr->pos.y), static_cast<float>(tr->pos.z)}, RotatorFromQuat(tr->rot));
+        repl->ForEachEntity([tickInterval](NetworkEntity *entity) {
+            if (auto *human = dynamic_cast<ClientHuman *>(entity)) {
+                human->Update(tickInterval);
+            }
+        });
     }
 } // namespace HogwartsMP::Core::Modules

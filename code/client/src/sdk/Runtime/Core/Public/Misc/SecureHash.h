@@ -185,11 +185,14 @@ private:
  */
 
 
+// Renamed from SHA1_WORKSPACE_BLOCK to avoid a global-namespace clash with the identical union in
+// mafianet's DR_SHA1.h (pulled in transitively by the framework networking headers). Only used by
+// FSHA1 below, whose implementation (SecureHash.cpp) is not compiled into the mod.
 typedef union
 {
 	uint8  c[64];
 	uint32 l[16];
-} SHA1_WORKSPACE_BLOCK;
+} FSHA1_WORKSPACE_BLOCK;
 
 /** This divider string is beween full file hashes and script hashes */
 #define HASHES_SHA_DIVIDER "+++"
@@ -331,7 +334,7 @@ private:
 
 	// Member variables
 	uint8 m_workspace[64];
-	SHA1_WORKSPACE_BLOCK *m_block; // SHA1 pointer to the byte array above
+	FSHA1_WORKSPACE_BLOCK *m_block; // SHA1 pointer to the byte array above
 
 	/** Global map of filename to hash value, filled out in InitializeFileHashesFromBuffer */
 	static TMap<FString, uint8*> FullFileSHAHashMap;

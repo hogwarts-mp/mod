@@ -17,11 +17,17 @@ int main(int argc, char **argv) {
     opts.bindPassword  = "";
     opts.enableSignals = true;
 
+    // Hogwarts is cm-scale (coords in the hundreds of thousands); size the interest grid to ~±20 km
+    // with 100 m cells so culling is meaningful at the player's 500 m range (the ±10k default clamps).
+    opts.worldConfig.streamWorldMin = -2000000.0f;
+    opts.worldConfig.streamWorldMax = 2000000.0f;
+    opts.worldConfig.streamCellSize = 10000.0f;
+
     opts.argc = argc;
     opts.argv = argv;
 
     HogwartsMP::Server server;
-    if (server.Init(opts) != Framework::Integrations::Server::ServerError::SERVER_NONE) {
+    if (!server.Init(opts)) {
         return 1;
     }
     server.Run();

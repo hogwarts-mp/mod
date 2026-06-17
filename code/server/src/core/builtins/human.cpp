@@ -2,80 +2,99 @@
 
 #include "events.h"
 
-#include "core/server.h"
+#include "shared/game/human.h"
 
-#include "shared/rpc/chat_message.h"
+#include <core_modules.h>
+#include <networking/network_peer.h>
+#include <networking/replication/replication_manager.h>
+#include <networking/rpc/chat_message.h>
 
 #include <logging/logger.h>
-#include <world/modules/base.hpp>
-#include <world/server.h>
+
+#include <mafianet/types.h>
+
+#include <sstream>
 
 namespace HogwartsMP::Scripting {
 
     std::unique_ptr<v8pp::class_<Human>> Human::_class;
 
     namespace {
-        // Emit a player lifecycle event with a Human JS object argument
-        void EmitHumanEvent(flecs::entity e, const std::string &eventName) {
-            EmitServerEvent(eventName, [e](v8::Isolate *isolate, v8::Local<v8::Context>, std::vector<v8::Local<v8::Value>> &args) {
-                args.push_back(v8pp::class_<Human>::create_object(isolate, e));
+        Shared::HumanEntity *ResolveHuman(uint64_t networkId) {
+            auto *repl = Framework::CoreModules::GetReplication();
+            return repl ? dynamic_cast<Shared::HumanEntity *>(repl->GetEntityByNetworkID(networkId)) : nullptr;
+        }
+
+        // Emit a player lifecycle event with a Human JS object argument.
+        void EmitHumanEvent(uint64_t networkId, const std::string &eventName) {
+            EmitServerEvent(eventName, [networkId](v8::Isolate *isolate, v8::Local<v8::Context>, std::vector<v8::Local<v8::Value>> &args) {
+                args.push_back(v8pp::class_<Human>::create_object(isolate, networkId));
             });
         }
     } // namespace
 
-    void Human::EventPlayerConnected(flecs::entity e) {
-        Framework::Logging::GetLogger("Scripting")->debug("Player connected: {}", e.id());
-        EmitHumanEvent(e, "playerConnect");
+    void Human::EventPlayerConnected(uint64_t networkId) {
+        Framework::Logging::GetLogger("Scripting")->debug("Player connected: {}", networkId);
+        EmitHumanEvent(networkId, "playerConnect");
     }
 
-    void Human::EventPlayerDisconnected(flecs::entity e) {
-        Framework::Logging::GetLogger("Scripting")->debug("Player disconnected: {}", e.id());
-        EmitHumanEvent(e, "playerDisconnect");
+    void Human::EventPlayerDisconnected(uint64_t networkId) {
+        Framework::Logging::GetLogger("Scripting")->debug("Player disconnected: {}", networkId);
+        EmitHumanEvent(networkId, "playerDisconnect");
     }
 
-    void Human::EventPlayerDied(flecs::entity e) {
-        Framework::Logging::GetLogger("Scripting")->debug("Player died: {}", e.id());
-        EmitHumanEvent(e, "playerDied");
+    void Human::EventPlayerDied(uint64_t networkId) {
+        Framework::Logging::GetLogger("Scripting")->debug("Player died: {}", networkId);
+        EmitHumanEvent(networkId, "playerDied");
     }
 
     std::string Human::ToString() const {
         std::ostringstream ss;
-        ss << "Human{ id: " << _ent.id() << " }";
+        ss << "Human{ id: " << GetId() << " }";
         return ss.str();
     }
 
     std::string Human::GetNickname() const {
-        const auto streamer = _ent.try_get<Framework::World::Modules::Base::Streamer>();
-        if (streamer) {
-            return streamer->nickname;
-        }
-        return "";
+        const auto *human = ResolveHuman(GetId());
+        return human ? human->nickname : "";
     }
 
     void Human::SendChat(std::string message) {
-        const auto streamer = _ent.try_get<Framework::World::Modules::Base::Streamer>();
-        if (streamer) {
-            FW_SEND_COMPONENT_RPC_TO(Shared::RPC::ChatMessage, MafiaNet::RakNetGUID(streamer->guid), message);
+        const auto *human = ResolveHuman(GetId());
+        if (!human) {
+            return;
         }
+        auto *peer = Framework::CoreModules::GetNetworkPeer();
+        if (!peer) {
+            return;
+        }
+        Framework::Networking::RPC::ChatMessage payload {std::move(message)};
+        peer->SendRPC(payload, MafiaNet::ToGuid(human->ownerGUID));
     }
 
     void Human::Destroy() {
-        // Real players (owner != 0) are torn down by the network/game systems on
-        // disconnect — leave those alone. Server-owned entities (NPCs spawned via
-        // World.spawnHuman, owner 0) must be removed explicitly; RemoveEntity
-        // fires the despawn to every client streaming them.
-        const auto streamable = _ent.try_get<Framework::World::Modules::Base::Streamable>();
-        if (streamable && streamable->owner == 0) {
-            Framework::World::ServerEngine::RemoveEntity(_ent);
+        auto *human = ResolveHuman(GetId());
+        auto *repl  = Framework::CoreModules::GetReplication();
+        if (!human || !repl) {
+            return;
+        }
+        // Real players (owned) are torn down by the network layer on disconnect — leave those alone.
+        // Server-owned entities (NPCs spawned via World.spawnHuman) must be removed explicitly;
+        // DestroyEntity broadcasts the despawn to every client streaming them.
+        if (human->ownerGUID == MafiaNet::UNASSIGNED_PEER_GUID) {
+            repl->DestroyEntity(human);
         }
     }
 
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
         if (!_class) {
+            // v8pp inherit<Player> requires Player (and its Entity base) registered first.
+            Framework::Scripting::Builtins::Player::GetClass(isolate);
+
             _class = std::make_unique<v8pp::class_<Human>>(isolate);
-            _class->inherit<Entity>()
+            _class->inherit<Framework::Scripting::Builtins::Player>()
                 .auto_wrap_objects(true)
-                .ctor<flecs::entity_t>()
+                .ctor<uint64_t>()
                 .function("toString", &Human::ToString)
                 .function("sendChat", &Human::SendChat)
                 .function("destroy", &Human::Destroy);

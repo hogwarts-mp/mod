@@ -2,7 +2,8 @@
 
 #include <v8.h>
 
-#include "entity.h"
+#include <scripting/builtins/entity.h>
+
 #include "human.h"
 #include "world.h"
 
@@ -14,11 +15,11 @@ namespace HogwartsMP::Scripting {
                 return;
             }
 
-            // Register entity classes on the Framework object
-            Scripting::Entity::Register(isolate, frameworkObj);
+            // Base entity handle (framework, header-only). Human inherits its Player subclass.
+            Framework::Scripting::Builtins::Entity::Register(isolate, frameworkObj);
             Scripting::Human::Register(isolate, frameworkObj);
 
-            // Register module singletons on global for direct access (World, Environment)
+            // Register module singletons on global for direct access (World, Environment).
             Scripting::World::Register(isolate, global);
         }
     };

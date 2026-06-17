@@ -1,110 +1,61 @@
 #include "human.h"
 
-#include "world/modules/base.hpp"
-#include "world/types/streaming.hpp"
-
-#include "shared/messages/human/human_despawn.h"
-#include "shared/messages/human/human_self_update.h"
-#include "shared/messages/human/human_spawn.h"
-#include "shared/messages/human/human_update.h"
-#include "shared/modules/human_sync.hpp"
+#include <networking/replication/entity_registry.h>
 
 #include <logging/logger.h>
 
-#include <flecs.h>
-
 namespace HogwartsMP::Core::Modules {
-    Human::Human(flecs::world &world) {
-        world.module<Human>();
-    }
+    using Framework::Networking::Replication::EntityRegistry;
+    using Framework::Networking::Replication::ReplicationManager;
 
-    void Human::Create(Framework::Networking::NetworkServer *net, flecs::entity e) {
-        auto &frame       = e.ensure<Framework::World::Modules::Base::Frame>();
-        frame.modelHash = 335218123840277515; /* TODO */
+    namespace {
+        // TODO(appearance sync): derive from the wire once appearance is carried; defaults to the
+        // model the proxy path already knows how to build.
+        constexpr uint64_t kDefaultSpawnProfile = 335218123840277515ULL;
 
-        e.add<Shared::Modules::HumanSync::UpdateData>();
-
-        auto es = e.try_get_mut<Framework::World::Modules::Base::Streamable>();
-
-        es->modEvents.spawnProc = [net](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            const auto frame = e.try_get<Framework::World::Modules::Base::Frame>();
-            Shared::Messages::Human::HumanSpawn humanSpawn;
-            humanSpawn.FromParameters(frame->modelHash);
-            humanSpawn.SetServerID(e.id());
-
-            net->Send(humanSpawn, guid);
-            // todo other stuff
-            return true;
-        };
-
-        es->modEvents.despawnProc = [net](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            Shared::Messages::Human::HumanDespawn humanDespawn;
-            humanDespawn.SetServerID(e.id());
-            net->Send(humanDespawn, guid);
-            return true;
-        };
-
-        es->modEvents.selfUpdateProc = [net](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            Shared::Messages::Human::HumanSelfUpdate humanSelfUpdate;
-            humanSelfUpdate.SetServerID(e.id());
-            net->Send(humanSelfUpdate, guid);
-            return true;
-        };
-
-        es->modEvents.updateProc = [net](Framework::Networking::NetworkPeer *peer, uint64_t guid, flecs::entity e) {
-            const auto trackingMetadata = e.try_get<Shared::Modules::HumanSync::UpdateData>();
-            // const auto frame            = e.get<Framework::World::Modules::Base::Frame>();
-
-            Shared::Messages::Human::HumanUpdate humanUpdate {};
-            humanUpdate.SetServerID(e.id());
-            humanUpdate.SetData(*trackingMetadata);
-            net->Send(humanUpdate, guid);
-            return true;
-        };
-    }
-
-    flecs::entity Human::Spawn(Framework::Networking::NetworkServer *net, std::shared_ptr<Framework::World::ServerEngine> srv, float x, float y, float z) {
-        // Anonymous entity (empty name) — a named CreateEntity is lookup-or-create
-        // in flecs, so a fixed name would return the SAME entity every call and
-        // each spawn would just relocate the first NPC.
-        auto e = srv->CreateEntity();
-
-        Framework::World::Archetypes::StreamingFactory factory;
-        factory.SetupServer(e, 0 /* server-owned, no peer */);
-
-        // Stay server-owned: AssignEntityOwnership would otherwise hand this
-        // owner-0 entity to the nearest client, which then echoes its stale
-        // client-side transform back every tick (same lesson as the broom bot).
-        auto &streamable               = e.ensure<Framework::World::Modules::Base::Streamable>();
-        streamable.assignOwnerManually = true;
-
-        Create(net, e);
-
-        auto &tr = e.ensure<Framework::World::Modules::Base::Transform>();
-        tr.pos   = {x, y, z};
-
-        // Wake it so the streamer picks it up — a freshly created server entity
-        // that nothing touches per-tick can otherwise stay dormant and never
-        // stream to clients (the broom bot only streamed because its orbit
-        // system modified it every frame).
-        srv->WakeEntity(e);
-
-        Framework::Logging::GetLogger("Human")->debug("Spawned NPC entity {} at ({}, {}, {})", e.id(), x, y, z);
-        return e;
-    }
-
-    void Human::SetupMessages(std::shared_ptr<Framework::World::ServerEngine> srv, Framework::Networking::NetworkServer *net) {
-        net->RegisterMessage<Shared::Messages::Human::HumanUpdate>(Shared::Messages::ModMessages::MOD_HUMAN_UPDATE, [srv](MafiaNet::RakNetGUID guid, Shared::Messages::Human::HumanUpdate *msg) {
-            const auto e = srv->WrapEntity(msg->GetServerID());
-            if (!e.is_alive()) {
-                return;
+        Shared::HumanEntity *CreateHuman(ReplicationManager *repl) {
+            if (!repl) {
+                return nullptr;
             }
-            if (!srv->IsEntityOwner(e, guid.g)) {
-                return;
+            const auto typeId = EntityRegistry::Get().TypeId(Shared::kHumanTypeName);
+            auto *human       = static_cast<Shared::HumanEntity *>(repl->CreateEntity(typeId));
+            if (!human) {
+                Framework::Logging::GetLogger("Human")->error("Failed to create Human entity (type not registered?)");
+                return nullptr;
             }
+            human->spawnProfile = kDefaultSpawnProfile;
+            return human;
+        }
+    } // namespace
 
-            auto trackingMetadata = e.try_get_mut<Shared::Modules::HumanSync::UpdateData>();
-            *trackingMetadata = msg->GetData();
-        });
+    void Human::Register() {
+        EntityRegistry::Get().Register<Shared::HumanEntity>(Shared::kHumanTypeName);
+    }
+
+    Shared::HumanEntity *Human::CreatePlayer(ReplicationManager *repl, const Framework::Integrations::Server::PlayerConnectionData &data) {
+        auto *human = CreateHuman(repl);
+        if (!human) {
+            return nullptr;
+        }
+        human->nickname = data.nickname;
+        // The framework's default interest radius is 100 units — ~1 m in Hogwarts' cm scale, so
+        // nothing more than a step away streams. Use a game-sized range (500 m) for the player's
+        // viewer entity so other players/NPCs are visible.
+        human->streaming.range = 50000.f;
+        repl->SetOwner(human, data.guid);
+        repl->SetViewer(data.guid, human);
+        return human;
+    }
+
+    Shared::HumanEntity *Human::Spawn(ReplicationManager *repl, float x, float y, float z) {
+        auto *human = CreateHuman(repl);
+        if (!human) {
+            return nullptr;
+        }
+        human->position = {x, y, z};
+        // Left unowned (ownerGUID stays UNASSIGNED): the server keeps authority, so it won't get
+        // handed to a client that would then echo a stale transform back every tick.
+        Framework::Logging::GetLogger("Human")->debug("Spawned NPC entity {} at ({}, {}, {})", human->GetNetworkID(), x, y, z);
+        return human;
     }
 } // namespace HogwartsMP::Core::Modules

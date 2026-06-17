@@ -31,7 +31,7 @@ void APlayerController_BeginPlay_Hook(void *pThis) {
 typedef void(__fastcall *APlayerController_EndPlay_t)(void *, EndPlayReason);
 APlayerController_EndPlay_t APlayerController_EndPlay_original = nullptr;
 void APlayerController_EndPlay_Hook(void *pThis, EndPlayReason reason) {
-    Framework::Logging::GetLogger("Hooks")->info("APlayerController::EndPlay with reason {}", reason);
+    Framework::Logging::GetLogger("Hooks")->info("APlayerController::EndPlay with reason {}", static_cast<int>(reason));
     APlayerController_EndPlay_original(pThis, reason);
 }
 
