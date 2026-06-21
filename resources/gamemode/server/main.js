@@ -7,12 +7,22 @@
  *   World.sendChatMessage(human, message)
  *   Environment.setWeather(name) / setTime(h, m) / setDate(d, m) / setSeason(0-3)
  *   Framework.Human - player entity class (nickname, position, rotation, sendChat)
+ *   Storage.get(key) / set(key, value) / has(key) / delete(key) / keys()
+ *     - persistent key/value store; values are strings (use JSON.stringify/parse for objects).
  */
 
 console.log("[GAMEMODE] Script loading...");
 
 // The framework exposes the event bus on the Core global
 const Events = Core.Events;
+
+// Persistent across restarts via the Storage builtin (storage.json). Demonstrates the persistence
+// layer the server-concept ideas (House Points, leaderboards, NPC memory) build on.
+function bumpVisitCount() {
+    const next = (parseInt(Storage.get("visits") ?? "0", 10) || 0) + 1;
+    Storage.set("visits", String(next));
+    return next;
+}
 
 const SEASONS = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 
@@ -29,8 +39,10 @@ const MAX_NPCS = 20;
 let npcWalkTimer = null;
 
 Events.on("playerConnect", (player) => {
-    console.log(`[GAMEMODE] ${player.nickname} connected`);
+    const visits = bumpVisitCount();
+    console.log(`[GAMEMODE] ${player.nickname} connected (visit #${visits})`);
     player.sendChat("[SERVER] Welcome to HogwartsMP! Commands: /weather /time /date /season");
+    player.sendChat(`[SERVER] You are visitor #${visits} since the server started keeping count.`);
 });
 
 Events.on("playerDisconnect", (player) => {

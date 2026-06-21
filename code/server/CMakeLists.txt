@@ -7,6 +7,8 @@ set(HOGWARTSMP_SERVER_FILES
 
     src/core/modules/human.cpp
 
+    src/core/storage/key_value_store.cpp
+
     ${CMAKE_BINARY_DIR}/hogwartsmp_version.cpp
 )
 
