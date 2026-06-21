@@ -5,6 +5,7 @@
   "description": "Default HogwartsMP gamemode: chat relay and environment commands",
   "mafiahub": {
     "server": "server/main.js",
+    "client": "client/main.js",
     "priority": 10
   }
 }

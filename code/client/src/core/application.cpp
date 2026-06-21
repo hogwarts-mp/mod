@@ -19,6 +19,9 @@
 
 #include "modules/human.h"
 
+#include "builtins/game.h"
+#include <scripting/engine.h>
+
 #include "external/imgui/widgets/corner_text.h"
 
 #include "shared/rpc/set_weather.h"
@@ -226,6 +229,30 @@ namespace HogwartsMP::Core {
     void Application::OnChatMessageReceived(const std::string &text) {
         _chat->AddMessage(text);
         Framework::Logging::GetLogger("chat")->trace(text);
+    }
+
+    // Register HogwartsMP client builtins onto the connection's V8 engine. The framework invokes this
+    // from InitFrameworkSDK with no V8 scopes active, so we enter them ourselves (mirroring
+    // ClientScriptingModule::RegisterFrameworkBindings) before touching the context.
+    void Application::ModuleRegister(Framework::Scripting::Engine *engine) {
+        if (!engine) {
+            return;
+        }
+        v8::Isolate *isolate = engine->GetIsolate();
+        if (!isolate) {
+            return;
+        }
+        v8::Locker locker(isolate);
+        v8::Isolate::Scope isolateScope(isolate);
+        v8::HandleScope handleScope(isolate);
+        v8::Local<v8::Context> context = engine->GetContext();
+        if (context.IsEmpty()) {
+            return;
+        }
+        v8::Context::Scope contextScope(context);
+
+        Scripting::ClientGame::Register(isolate, context->Global());
+        Framework::Logging::GetLogger("Scripting")->debug("Registered HogwartsMP client builtins");
     }
 
     uint64_t Application::GetLocalPlayerID() {

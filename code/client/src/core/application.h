@@ -53,6 +53,9 @@ namespace HogwartsMP::Core {
         void PostUpdate() override;
         void PostRender() override;
 
+        // Register HogwartsMP client-side scripting builtins onto the connection's V8 engine.
+        void ModuleRegister(Framework::Scripting::Engine *engine) override;
+
         // Networking event hooks (framework dispatches these; no Set*Callback setters anymore).
         void OnConnectionFinalized(float serverTickRate) override;
         void OnConnectionClosed() override;
