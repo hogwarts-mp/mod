@@ -24,6 +24,10 @@ namespace HogwartsMP::Scripting {
 
         void SendChat(std::string message);
 
+        // Emit a named event to this player's client scripts (Core.Events). payloadJson is sent as-is
+        // and JSON.parsed on the client into the handler's single argument; pass JSON text.
+        void Emit(std::string eventName, std::string payloadJson);
+
         void Destroy();
 
         static void EventPlayerConnected(uint64_t networkId);

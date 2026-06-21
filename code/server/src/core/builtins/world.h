@@ -16,6 +16,7 @@
 #include "shared/rpc/set_weather.h"
 
 #include <core_modules.h>
+#include <integrations/shared/rpc/emit_lua_event.h>
 #include <logging/logger.h>
 #include <networking/network_peer.h>
 #include <networking/replication/replication_manager.h>
@@ -43,6 +44,19 @@ namespace HogwartsMP::Scripting {
             if (human) {
                 human->SendChat(message);
             }
+        }
+
+        // World.emitAllClients(name, payloadJson) — broadcast a named event to every client's scripts
+        // (Core.Events). payloadJson is JSON.parsed on the client into the handler's single argument,
+        // so pass JSON text (e.g. JSON.stringify(obj)); empty -> handler called with no argument.
+        static void EmitAllClients(std::string eventName, std::string payloadJson) {
+            auto *peer = Framework::CoreModules::GetNetworkPeer();
+            if (!peer) {
+                return;
+            }
+            Framework::Integrations::Shared::RPC::EmitLuaEvent ev;
+            ev.FromParameters(eventName, payloadJson);
+            peer->BroadcastRPC(ev);
         }
 
         // World.spawnHuman(x, y, z) -> Human
@@ -199,6 +213,7 @@ namespace HogwartsMP::Scripting {
             v8pp::module worldModule(isolate);
             worldModule.function("broadcastMessage", &World::BroadcastMessage);
             worldModule.function("sendChatMessage", &World::SendChatMessage);
+            worldModule.function("emitAllClients", &World::EmitAllClients);
             worldModule.function("getPlayerCount", &World::GetPlayerCount);
             auto worldObj = worldModule.new_instance();
             // spawnHuman / getPlayers / getPlayer need the isolate + return wrapped objects, so they're

@@ -99,6 +99,20 @@ Events.on("chatCommand", (player, message, command, args) => {
             break;
         }
 
+        case "ping": {
+            // Server -> this client's scripts: player.emit(name, jsonPayload). The client gamemode
+            // listens for "ping" and replies in-game (a HUD/chat notify), proving the reactive path.
+            player.emit("ping", JSON.stringify({ time: Date.now(), from: player.nickname }));
+            break;
+        }
+
+        case "announce": {
+            // Server -> every client's scripts: World.emitAllClients broadcasts the event.
+            const text = args.join(" ") || "Hello from the server!";
+            World.emitAllClients("announce", JSON.stringify({ text }));
+            break;
+        }
+
         case "spawnnpc": {
             if (npcs.length >= MAX_NPCS) {
                 player.sendChat(`[DEV] NPC limit reached (${MAX_NPCS}) — /clearnpcs first`);
