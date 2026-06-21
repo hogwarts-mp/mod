@@ -5,6 +5,7 @@
 #include "shared/game/human.h"
 
 #include <core_modules.h>
+#include <integrations/shared/rpc/emit_lua_event.h>
 #include <networking/network_peer.h>
 #include <networking/replication/replication_manager.h>
 #include <networking/rpc/chat_message.h>
@@ -70,6 +71,23 @@ namespace HogwartsMP::Scripting {
         peer->SendRPC(payload, MafiaNet::ToGuid(human->ownerGUID));
     }
 
+    void Human::Emit(std::string eventName, std::string payloadJson) {
+        const auto *human = ResolveHuman(GetId());
+        if (!human) {
+            return;
+        }
+        auto *peer = Framework::CoreModules::GetNetworkPeer();
+        if (!peer) {
+            return;
+        }
+        // Delivered to this player's client scripts as Core.Events.on(eventName, payload); the client
+        // JSON.parses payloadJson into the single handler arg, so callers pass JSON text (e.g.
+        // JSON.stringify(obj)). Empty payload -> the handler is called with no argument.
+        Framework::Integrations::Shared::RPC::EmitLuaEvent ev;
+        ev.FromParameters(eventName, payloadJson);
+        peer->SendRPC(ev, MafiaNet::ToGuid(human->ownerGUID));
+    }
+
     void Human::Destroy() {
         auto *human = ResolveHuman(GetId());
         auto *repl  = Framework::CoreModules::GetReplication();
@@ -100,6 +118,7 @@ namespace HogwartsMP::Scripting {
             .ctor<uint64_t>()
             .function("toString", &Human::ToString)
             .function("sendChat", &Human::SendChat)
+            .function("emit", &Human::Emit)
             .function("destroy", &Human::Destroy);
 
         auto protoTemplate = cls->class_function_template()->PrototypeTemplate();

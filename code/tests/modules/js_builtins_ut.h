@@ -54,6 +54,7 @@ MODULE(js_builtins, {
             // Module singletons on the global object
             EQUALS(evalBool("typeof World.broadcastMessage === 'function'"), true);
             EQUALS(evalBool("typeof World.sendChatMessage === 'function'"), true);
+            EQUALS(evalBool("typeof World.emitAllClients === 'function'"), true);
 
             // Player query surface + graceful behaviour with no networking running in the test harness:
             // getPlayers() is an empty array, getPlayerCount() is 0, getPlayer() is undefined.
@@ -90,6 +91,7 @@ MODULE(js_builtins, {
             EQUALS(evalBool("Object.getOwnPropertyNames(EntityImpl.prototype).includes('position')"), true);
             EQUALS(evalBool("Object.getOwnPropertyNames(EntityImpl.prototype).includes('rotation')"), true);
             EQUALS(evalBool("typeof HumanImpl.prototype.sendChat === 'function'"), true);
+            EQUALS(evalBool("typeof HumanImpl.prototype.emit === 'function'"), true);
             EQUALS(evalBool("typeof HumanImpl.prototype.destroy === 'function'"), true);
             EQUALS(evalBool("Object.getOwnPropertyNames(HumanImpl.prototype).includes('nickname')"), true);
         }

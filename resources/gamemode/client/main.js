@@ -12,3 +12,13 @@ console.log("[CLIENT] gamemode client script loaded");
 
 // Proves the end-to-end path: a client resource started -> a HogwartsMP client builtin -> the game UI.
 Game.notify("[CLIENT] HogwartsMP client scripting is live!");
+
+// Server-driven events: the server sends these via player.emit / World.emitAllClients; the payload
+// is JSON.parsed into this single handler argument. Try /ping and /announce in chat.
+Core.Events.on("ping", (data) => {
+    Game.notify(`[CLIENT] pong! server time ${data.time} (from ${data.from})`);
+});
+
+Core.Events.on("announce", (data) => {
+    Game.notify(`[ANNOUNCE] ${data.text}`);
+});
