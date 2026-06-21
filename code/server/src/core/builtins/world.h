@@ -11,13 +11,17 @@
 #include "core/modules/human.h"
 #include "core/server.h"
 
+#include "shared/game/human.h"
 #include "shared/game/weather.h"
 #include "shared/rpc/set_weather.h"
 
 #include <core_modules.h>
 #include <logging/logger.h>
 #include <networking/network_peer.h>
+#include <networking/replication/replication_manager.h>
 #include <networking/rpc/chat_message.h>
+
+#include <mafianet/types.h>
 
 #include <cstdint>
 #include <string>
@@ -69,6 +73,64 @@ namespace HogwartsMP::Scripting {
                 return;
             }
             info.GetReturnValue().Set(v8pp::class_<Human>::create_object(isolate, human->GetNetworkID()));
+        }
+
+        // World.getPlayers() -> Human[]
+        // Every connected player, as Human handles. Server-owned NPCs (from spawnHuman, which are
+        // unowned) are excluded — use them via the handles spawnHuman returns. Empty when networking
+        // is unavailable.
+        static void JsGetPlayers(const v8::FunctionCallbackInfo<v8::Value> &info) {
+            auto *isolate            = info.GetIsolate();
+            auto ctx                 = isolate->GetCurrentContext();
+            v8::Local<v8::Array> arr = v8::Array::New(isolate);
+
+            auto *repl = Framework::CoreModules::GetReplication();
+            if (repl) {
+                uint32_t i = 0;
+                repl->ForEach<Shared::HumanEntity>([&](Shared::HumanEntity *human) {
+                    if (human->ownerGUID == MafiaNet::UNASSIGNED_PEER_GUID) {
+                        return; // server-owned NPC, not a player
+                    }
+                    arr->Set(ctx, i++, v8pp::class_<Human>::create_object(isolate, human->GetNetworkID())).Check();
+                });
+            }
+            info.GetReturnValue().Set(arr);
+        }
+
+        // World.getPlayer(id) -> Human | undefined
+        // The connected player with the given network id, or undefined if no such player exists (e.g.
+        // the id belongs to a server NPC or has disconnected).
+        static void JsGetPlayer(const v8::FunctionCallbackInfo<v8::Value> &info) {
+            auto *isolate = info.GetIsolate();
+            auto ctx      = isolate->GetCurrentContext();
+            if (info.Length() < 1 || !info[0]->IsNumber()) {
+                isolate->ThrowException(v8::Exception::TypeError(v8pp::to_v8(isolate, "getPlayer(id) requires a numeric id")));
+                return;
+            }
+            const uint64_t id = static_cast<uint64_t>(info[0]->IntegerValue(ctx).FromMaybe(0));
+
+            auto *repl = Framework::CoreModules::GetReplication();
+            auto *human = repl ? repl->GetEntity<Shared::HumanEntity>(id) : nullptr;
+            if (!human || human->ownerGUID == MafiaNet::UNASSIGNED_PEER_GUID) {
+                info.GetReturnValue().SetUndefined();
+                return;
+            }
+            info.GetReturnValue().Set(v8pp::class_<Human>::create_object(isolate, human->GetNetworkID()));
+        }
+
+        // World.getPlayerCount() -> number of connected players (cheaper than getPlayers().length).
+        static int GetPlayerCount() {
+            auto *repl = Framework::CoreModules::GetReplication();
+            if (!repl) {
+                return 0;
+            }
+            int count = 0;
+            repl->ForEach<Shared::HumanEntity>([&](Shared::HumanEntity *human) {
+                if (human->ownerGUID != MafiaNet::UNASSIGNED_PEER_GUID) {
+                    ++count;
+                }
+            });
+            return count;
         }
 
         static void SetWeather(std::string weatherSetName) {
@@ -137,11 +199,18 @@ namespace HogwartsMP::Scripting {
             v8pp::module worldModule(isolate);
             worldModule.function("broadcastMessage", &World::BroadcastMessage);
             worldModule.function("sendChatMessage", &World::SendChatMessage);
+            worldModule.function("getPlayerCount", &World::GetPlayerCount);
             auto worldObj = worldModule.new_instance();
-            // spawnHuman needs the isolate + returns a wrapped object, so it's a raw FunctionTemplate
-            // set on the module object rather than a typed v8pp function.
+            // spawnHuman / getPlayers / getPlayer need the isolate + return wrapped objects, so they're
+            // raw FunctionTemplates set on the module object rather than typed v8pp functions.
             worldObj->Set(ctx, v8pp::to_v8(isolate, "spawnHuman"),
                           v8::FunctionTemplate::New(isolate, &World::JsSpawnHuman)->GetFunction(ctx).ToLocalChecked())
+                .Check();
+            worldObj->Set(ctx, v8pp::to_v8(isolate, "getPlayers"),
+                          v8::FunctionTemplate::New(isolate, &World::JsGetPlayers)->GetFunction(ctx).ToLocalChecked())
+                .Check();
+            worldObj->Set(ctx, v8pp::to_v8(isolate, "getPlayer"),
+                          v8::FunctionTemplate::New(isolate, &World::JsGetPlayer)->GetFunction(ctx).ToLocalChecked())
                 .Check();
             global->Set(ctx, v8pp::to_v8(isolate, "World"), worldObj).Check();
 
