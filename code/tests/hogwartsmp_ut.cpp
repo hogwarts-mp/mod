@@ -5,6 +5,7 @@
 #include "modules/chat_command_ut.h"
 #include "modules/rpc_ut.h"
 #include "modules/js_builtins_ut.h"
+#include "modules/storage_ut.h"
 
 int main() {
     UNIT_CREATE("HogwartsMPTests");
@@ -14,6 +15,7 @@ int main() {
     UNIT_MODULE(chat_command);
     UNIT_MODULE(rpc);
     UNIT_MODULE(js_builtins);
+    UNIT_MODULE(storage);
 
     return UNIT_RUN();
 }

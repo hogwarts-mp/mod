@@ -4,6 +4,7 @@ set(HOGWARTSMP_TESTS_FILES
     ../server/src/core/builtins/events.cpp
     ../server/src/core/builtins/human.cpp
     ../server/src/core/modules/human.cpp
+    ../server/src/core/storage/key_value_store.cpp
 )
 
 add_executable(HogwartsMPTests ${HOGWARTSMP_TESTS_FILES})

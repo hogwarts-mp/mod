@@ -4,6 +4,8 @@
 
 #include "core/builtins/builtins.h"
 
+#include <cstdio>
+
 MODULE(js_builtins, {
     using namespace Framework::Scripting;
 
@@ -53,6 +55,18 @@ MODULE(js_builtins, {
             EQUALS(evalBool("typeof Environment.setDate === 'function'"), true);
             EQUALS(evalBool("typeof Environment.setSeason === 'function'"), true);
 
+            // Storage builtin: surface + a live set/get/has/delete round-trip through the engine.
+            EQUALS(evalBool("typeof Storage.set === 'function'"), true);
+            EQUALS(evalBool("typeof Storage.get === 'function'"), true);
+            EQUALS(evalBool("typeof Storage.has === 'function'"), true);
+            EQUALS(evalBool("typeof Storage.delete === 'function'"), true);
+            EQUALS(evalBool("typeof Storage.keys === 'function'"), true);
+            EQUALS(evalBool("Storage.set('ut_key', 'ut_val'); Storage.get('ut_key') === 'ut_val'"), true);
+            EQUALS(evalBool("Storage.has('ut_key') === true"), true);
+            EQUALS(evalBool("Storage.get('ut_missing') === undefined"), true);
+            EQUALS(evalBool("Storage.keys().includes('ut_key')"), true);
+            EQUALS(evalBool("Storage.delete('ut_key') === true && Storage.has('ut_key') === false"), true);
+
             // Entity classes on the Framework object, with the inherit chain intact
             EQUALS(evalBool("typeof Framework.Entity === 'function'"), true);
             EQUALS(evalBool("typeof Framework.Human === 'function'"), true);
@@ -68,5 +82,9 @@ MODULE(js_builtins, {
         }
 
         engine.Shutdown();
+
+        // The Storage round-trip above flushes to the process-wide store's backing file; remove it so
+        // the test leaves no artifact behind.
+        std::remove(HogwartsMP::Scripting::Storage::STORAGE_FILE);
     });
 });

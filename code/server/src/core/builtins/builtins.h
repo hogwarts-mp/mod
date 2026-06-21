@@ -5,6 +5,7 @@
 #include <scripting/builtins/entity.h>
 
 #include "human.h"
+#include "storage.h"
 #include "world.h"
 
 namespace HogwartsMP::Scripting {
@@ -19,8 +20,9 @@ namespace HogwartsMP::Scripting {
             Framework::Scripting::Builtins::Entity::Register(isolate, frameworkObj);
             Scripting::Human::Register(isolate, frameworkObj);
 
-            // Register module singletons on global for direct access (World, Environment).
+            // Register module singletons on global for direct access (World, Environment, Storage).
             Scripting::World::Register(isolate, global);
+            Scripting::Storage::Register(isolate, global);
         }
     };
 } // namespace HogwartsMP::Scripting
