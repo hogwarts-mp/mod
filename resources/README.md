@@ -114,6 +114,11 @@ These globals are available in every server script.
 ### `World`
 - `World.broadcastMessage(message)` — send a chat line to every connected player.
 - `World.sendChatMessage(human, message)` — send a chat line to one player.
+- `World.getPlayers()` → **Human[]** — every connected player. Server-owned NPCs (from
+  `spawnHuman`) are **not** included.
+- `World.getPlayer(id)` → **Human | undefined** — the connected player with the given network id
+  (`human.id`), or `undefined` if none.
+- `World.getPlayerCount()` → number of connected players (cheaper than `getPlayers().length`).
 - `World.spawnHuman(x, y, z)` → **Human** — spawn a server-owned NPC at a world position. Clients
   render it like any other player. Remove it with `human.destroy()`.
 
@@ -218,3 +223,18 @@ Events.on("chatCommand", (player, message, command, args) => {
 
 Because points live in `Storage`, the standings survive a server restart — the foundation for House
 Cups, leaderboards, and the other persistent-world ideas.
+
+To act on everyone currently online — e.g. an announcement that addresses each player, or tallying a
+live scoreboard — iterate `World.getPlayers()`:
+
+```js
+Events.on("chatCommand", (player, message, command) => {
+    if (command === "online") {
+        const players = World.getPlayers();
+        player.sendChat(`There are ${World.getPlayerCount()} wizards online:`);
+        for (const p of players) {
+            player.sendChat(` - ${p.nickname}`);
+        }
+    }
+});
+```
