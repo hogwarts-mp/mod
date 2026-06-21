@@ -17,8 +17,6 @@
 
 namespace HogwartsMP::Scripting {
 
-    std::unique_ptr<v8pp::class_<Human>> Human::_class;
-
     namespace {
         Shared::HumanEntity *ResolveHuman(uint64_t networkId) {
             auto *repl = Framework::CoreModules::GetReplication();
@@ -87,29 +85,33 @@ namespace HogwartsMP::Scripting {
     }
 
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
-        if (!_class) {
-            // v8pp inherit<Player> requires Player (and its Entity base) registered first.
-            Framework::Scripting::Builtins::Player::GetClass(isolate);
-
-            _class = std::make_unique<v8pp::class_<Human>>(isolate);
-            _class->inherit<Framework::Scripting::Builtins::Player>()
-                .auto_wrap_objects(true)
-                .ctor<uint64_t>()
-                .function("toString", &Human::ToString)
-                .function("sendChat", &Human::SendChat)
-                .function("destroy", &Human::Destroy);
-
-            auto protoTemplate = _class->class_function_template()->PrototypeTemplate();
-
-            // nickname (read-only)
-            protoTemplate->SetNativeDataProperty(
-                v8pp::to_v8(isolate, "nickname").As<v8::Name>(),
-                [](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value> &info) {
-                    auto *self = v8pp::class_<Human>::unwrap_object(info.GetIsolate(), info.This());
-                    if (self) info.GetReturnValue().Set(v8pp::to_v8(info.GetIsolate(), self->GetNickname()));
-                });
+        auto it = _classes.find(isolate);
+        if (it != _classes.end()) {
+            return *it->second;
         }
-        return *_class;
+
+        // v8pp inherit<Player> requires Player (and its Entity base) registered first.
+        Framework::Scripting::Builtins::Player::GetClass(isolate);
+
+        auto &cls = _classes[isolate];
+        cls = std::make_unique<v8pp::class_<Human>>(isolate);
+        cls->inherit<Framework::Scripting::Builtins::Player>()
+            .auto_wrap_objects(true)
+            .ctor<uint64_t>()
+            .function("toString", &Human::ToString)
+            .function("sendChat", &Human::SendChat)
+            .function("destroy", &Human::Destroy);
+
+        auto protoTemplate = cls->class_function_template()->PrototypeTemplate();
+
+        // nickname (read-only)
+        protoTemplate->SetNativeDataProperty(
+            v8pp::to_v8(isolate, "nickname").As<v8::Name>(),
+            [](v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value> &info) {
+                auto *self = v8pp::class_<Human>::unwrap_object(info.GetIsolate(), info.This());
+                if (self) info.GetReturnValue().Set(v8pp::to_v8(info.GetIsolate(), self->GetNickname()));
+            });
+        return *cls;
     }
 
     void Human::Register(v8::Isolate *isolate, v8::Local<v8::Object> global) {
