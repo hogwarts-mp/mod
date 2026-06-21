@@ -1,0 +1,14 @@
+{
+  "//": "Type-checks this resource's client script against the HogwartsMP client API defs. Authoring aid only — nothing is emitted; the client runs the .js directly.",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": ["ES2020"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "types": []
+  },
+  "include": ["**/*.js", "../../types/hogwartsmp-client.d.ts"]
+}

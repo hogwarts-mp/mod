@@ -80,3 +80,22 @@ jobs:
 
       - name: Build and run tests
         run: cmake --build build --target RunHogwartsMPTests
+
+  typecheck:
+    name: Scripting type-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Only the mod is needed (no framework, no C++ build): type-check the JS scripting resources
+      # against the .d.ts API defs. Catches API drift between the builtins and the type definitions.
+      - name: Checkout mod
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Node is preinstalled on ubuntu-latest; install the pinned TypeScript compiler.
+      - name: Install TypeScript
+        run: npm install -g typescript@5
+
+      - name: Type-check scripting resources (server + client)
+        run: |
+          tsc -p resources/gamemode/server
+          tsc -p resources/gamemode/client
