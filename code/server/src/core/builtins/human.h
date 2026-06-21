@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 namespace HogwartsMP::Scripting {
     // A player avatar exposed to JS. Derives the framework Player handle (id/position/rotation/kick,
@@ -33,6 +34,8 @@ namespace HogwartsMP::Scripting {
         static v8pp::class_<Human> &GetClass(v8::Isolate *isolate);
 
       private:
-        static std::unique_ptr<v8pp::class_<Human>> _class;
+        // Keyed by isolate (like the framework's Entity/Player) so a second isolate in the same
+        // process gets its own class rather than reusing one bound to a destroyed isolate.
+        inline static std::unordered_map<v8::Isolate *, std::unique_ptr<v8pp::class_<Human>>> _classes;
     };
 } // namespace HogwartsMP::Scripting
