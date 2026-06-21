@@ -129,6 +129,13 @@ namespace HogwartsMP::Core {
         }
     } // namespace
 
+    SDK::ABiped_Player *GetLiveLocalBiped() {
+        // Fresh each call: SafeGrabLocalPlayer walks *GWorld -> ... -> Character under SEH, so it
+        // returns the current pawn (or nullptr) and never a stale/destroyed one. Callers that may run
+        // after teardown (client scripts) use this instead of the never-cleared gGlobals latch.
+        return SafeGrabLocalPlayer(gGlobals.world).biped;
+    }
+
     void Application::PostUpdate() {
         if (_stateMachine) {
             _stateMachine->Update();
