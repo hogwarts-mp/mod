@@ -6,6 +6,7 @@
 #include "modules/rpc_ut.h"
 #include "modules/js_builtins_ut.h"
 #include "modules/storage_ut.h"
+#include "modules/world_players_ut.h"
 
 int main() {
     UNIT_CREATE("HogwartsMPTests");
@@ -16,6 +17,7 @@ int main() {
     UNIT_MODULE(rpc);
     UNIT_MODULE(js_builtins);
     UNIT_MODULE(storage);
+    UNIT_MODULE(world_players);
 
     return UNIT_RUN();
 }
