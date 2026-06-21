@@ -53,6 +53,13 @@ Events.on("chatMessage", (player, message) => {
     World.broadcastMessage(`${player.nickname}: ${message}`);
 });
 
+// Client -> server event (sent from the client gamemode's /ping handler via Game.emitServer).
+// Receives (player, payload); proves the up-direction of scripted messaging.
+Events.on("clientReady", (player, data) => {
+    console.log(`[GAMEMODE] clientReady from ${player.nickname}: ${JSON.stringify(data)}`);
+    player.sendChat("[SERVER] received your client event — round-trip OK");
+});
+
 Events.on("chatCommand", (player, message, command, args) => {
     switch (command) {
         case "weather":

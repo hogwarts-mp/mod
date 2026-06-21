@@ -8,8 +8,11 @@
 #include "shared/game/human.h"
 
 #include <core_modules.h>
+#include <integrations/shared/rpc/emit_lua_event.h>
 #include <networking/replication/replication_manager.h>
 #include <networking/rpc/chat_message.h>
+
+#include <mafianet/types.h>
 
 #include <fmt/format.h>
 
@@ -22,6 +25,23 @@ namespace HogwartsMP {
 
         // Register the networked entity types before any connection is accepted.
         Core::Modules::Human::Register();
+
+        // Client -> server scripted events: a client's Game.emitServer sends EmitLuaEvent up; resolve
+        // the sender to its avatar and dispatch into the server event bus as (player, payload).
+        auto *net = GetNetworkingEngine()->GetNetworkServer();
+        net->RegisterRPC<Framework::Integrations::Shared::RPC::EmitLuaEvent>(
+            [this](const Framework::Integrations::Shared::RPC::EmitLuaEvent &payload, MafiaNet::Packet *packet) {
+                const std::string name = payload.GetEventName();
+                if (name.empty()) {
+                    return;
+                }
+                auto *repl   = GetNetworkingEngine()->GetNetworkServer()->GetReplicationManager();
+                auto *sender = repl ? repl->GetViewer(MafiaNet::ToPeerGuid(packet->guid)) : nullptr;
+                if (!sender) {
+                    return;
+                }
+                Scripting::World::EventClientEvent(sender->GetNetworkID(), name, payload.GetPayload());
+            });
 
         Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Networking messages registered!");
     }

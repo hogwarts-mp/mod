@@ -2,6 +2,8 @@
 
 #include "core/application.h"
 
+#include <integrations/shared/rpc/emit_lua_event.h>
+
 #include <v8pp/convert.hpp>
 #include <v8pp/module.hpp>
 
@@ -20,6 +22,25 @@ namespace HogwartsMP::Scripting {
                 }
             }
         }
+
+        // Game.emitServer(name, payloadJson): send a named event up to the server's scripts. The
+        // client has a single peer (the server), so BroadcastRPC reaches it. Server scripts receive it
+        // as Core.Events.on(name, (player, payload) => ...); payloadJson is JSON.parsed there, so pass
+        // JSON text (e.g. JSON.stringify(obj)).
+        void EmitServer(std::string eventName, std::string payloadJson) {
+            auto *app = HogwartsMP::Core::gApplication.get();
+            if (!app) {
+                return;
+            }
+            auto *engine = app->GetNetworkingEngine();
+            auto *net    = engine ? engine->GetNetworkClient() : nullptr;
+            if (!net) {
+                return;
+            }
+            Framework::Integrations::Shared::RPC::EmitLuaEvent ev;
+            ev.FromParameters(eventName, payloadJson);
+            net->BroadcastRPC(ev);
+        }
     } // namespace
 
     void ClientGame::Register(v8::Isolate *isolate, v8::Local<v8::Object> global) {
@@ -30,6 +51,7 @@ namespace HogwartsMP::Scripting {
 
         v8pp::module gameModule(isolate);
         gameModule.function("notify", &Notify);
+        gameModule.function("emitServer", &EmitServer);
         global->Set(ctx, v8pp::to_v8(isolate, "Game"), gameModule.new_instance()).Check();
     }
 } // namespace HogwartsMP::Scripting
