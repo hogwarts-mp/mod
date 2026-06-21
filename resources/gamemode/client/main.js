@@ -17,6 +17,8 @@ Game.notify("[CLIENT] HogwartsMP client scripting is live!");
 // is JSON.parsed into this single handler argument. Try /ping and /announce in chat.
 Core.Events.on("ping", (data) => {
     Game.notify(`[CLIENT] pong! server time ${data.time} (from ${data.from})`);
+    // Reply up to the server's scripts (client -> server), completing the round-trip.
+    Game.emitServer("clientReady", JSON.stringify({ ok: true }));
 });
 
 Core.Events.on("announce", (data) => {

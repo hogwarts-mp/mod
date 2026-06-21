@@ -24,6 +24,8 @@
 
 #include <mafianet/types.h>
 
+#include <nlohmann/json.hpp>
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -200,6 +202,43 @@ namespace HogwartsMP::Scripting {
                 args.push_back(v8pp::to_v8(isolate, message));
                 args.push_back(v8pp::to_v8(isolate, command));
                 args.push_back(argsArray);
+            });
+        }
+
+        // A client script sent a named event up to the server (via the client's Game.emitServer).
+        // Dispatched to server scripts as Core.Events.on(eventName, (player, payload) => ...). An empty
+        // payload omits the second arg (handler gets just `player`); a non-empty but malformed payload
+        // drops the event entirely — matching the down direction (OnEmitLuaEvent drops on parse
+        // failure), so a handler never sees a half-event with a missing `payload`.
+        //
+        // TRUST CAVEAT: the event name + payload are attacker-controlled (they come from a client). A
+        // malicious client can emit ANY name, including server-authoritative ones (e.g. "chatCommand").
+        // Treat handlers as untrusted input: validate payloads and don't key security-sensitive logic
+        // on client-emitted events sharing a reserved name. (Hardening — namespacing/allowlist — is
+        // deferred to the reflection-bridge trust-model work.)
+        static void EventClientEvent(uint64_t senderNetworkId, std::string eventName, std::string payloadJson) {
+            Framework::Logging::GetLogger("Scripting")->debug("Client event '{}' from {}", eventName, senderNetworkId);
+
+            // Drop a non-empty but malformed payload instead of dispatching with a missing arg, so this
+            // matches the client's OnEmitLuaEvent (which drops on parse failure).
+            if (!payloadJson.empty() && !nlohmann::json::accept(payloadJson)) {
+                Framework::Logging::GetLogger("Scripting")->warn("Dropping client event '{}' from {}: malformed JSON payload", eventName, senderNetworkId);
+                return;
+            }
+
+            EmitServerEvent(eventName, [senderNetworkId, payloadJson](v8::Isolate *isolate, v8::Local<v8::Context> context, std::vector<v8::Local<v8::Value>> &args) {
+                args.push_back(v8pp::class_<Human>::create_object(isolate, senderNetworkId));
+                if (payloadJson.empty()) {
+                    return;
+                }
+                v8::Local<v8::String> jsonStr;
+                if (!v8::String::NewFromUtf8(isolate, payloadJson.c_str()).ToLocal(&jsonStr)) {
+                    return;
+                }
+                v8::Local<v8::Value> parsed;
+                if (v8::JSON::Parse(context, jsonStr).ToLocal(&parsed)) {
+                    args.push_back(parsed);
+                }
             });
         }
 
