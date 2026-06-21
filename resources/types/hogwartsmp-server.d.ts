@@ -5,9 +5,20 @@
 //
 // Hand-maintained: keep in sync with code/server/src/core/builtins/. Include EITHER this file or
 // hogwartsmp-client.d.ts per resource, never both (they both declare `Core`).
-//
-// `console`, `setTimeout`, `setInterval`, etc. come from TypeScript's default lib (no declaration
-// here, to avoid conflicting with it / @types/node).
+
+// --- Runtime globals the engine provides. Declared here because the tsconfig uses lib "ES2020"
+// (NOT "DOM") — the DOM lib's Web APIs (Storage, Location, ...) collide with our builtin names. ---
+declare var console: {
+    log(...args: any[]): void;
+    info(...args: any[]): void;
+    warn(...args: any[]): void;
+    error(...args: any[]): void;
+    debug(...args: any[]): void;
+};
+declare function setTimeout(handler: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function setInterval(handler: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function clearTimeout(id: number): void;
+declare function clearInterval(id: number): void;
 
 // --- Math / entity handles ---
 

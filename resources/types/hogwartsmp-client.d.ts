@@ -5,10 +5,22 @@
 //
 // Hand-maintained: keep in sync with code/client/src/core/builtins/. Include EITHER this file or
 // hogwartsmp-server.d.ts per resource, never both (they both declare `Core`).
-//
-// `console`, `setTimeout`, `setInterval`, `queueMicrotask` come from TypeScript's default lib (not
-// redeclared here). The client engine provides those plus a CommonJS require for local .js files
-// (no Node builtin modules), declared below since it isn't in the default lib.
+
+// --- Runtime globals the client V8 engine provides. Declared here because the tsconfig uses lib
+// "ES2020" (NOT "DOM") — the DOM lib's Web APIs collide with builtin names. ---
+declare var console: {
+    log(...args: any[]): void;
+    info(...args: any[]): void;
+    warn(...args: any[]): void;
+    error(...args: any[]): void;
+    debug(...args: any[]): void;
+};
+declare function setTimeout(handler: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function setInterval(handler: (...args: any[]) => void, ms?: number, ...args: any[]): number;
+declare function clearTimeout(id: number): void;
+declare function clearInterval(id: number): void;
+declare function queueMicrotask(callback: () => void): void;
+/** CommonJS require for local .js files within the resource (no Node builtin modules). */
 declare function require(path: string): any;
 
 // --- Game-facing builtins ---

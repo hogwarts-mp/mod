@@ -1,0 +1,14 @@
+{
+  "//": "Type-checks this resource's server script against the HogwartsMP server API defs. Authoring aid only — nothing is emitted; the server runs the .js directly.",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": ["ES2020"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "types": []
+  },
+  "include": ["**/*.js", "../../types/hogwartsmp-server.d.ts"]
+}

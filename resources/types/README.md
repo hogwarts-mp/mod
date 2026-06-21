@@ -31,9 +31,9 @@ Events.on("playerConnect", (player) => {
 (Adjust the relative path to wherever your script sits, e.g. `../../types/hogwartsmp-client.d.ts`
 from `gamemode/client/main.js`.)
 
-`console`, `setTimeout`, `setInterval`, etc. are provided by TypeScript's default library, so they
-work without any extra setup. If you set `compilerOptions.lib` explicitly, include `"DOM"` (or add
-`@types/node` on the server) so those globals stay defined.
+Use `"lib": ["ES2020"]` (as the gamemode's tsconfigs do) — **not** `"DOM"`. The DOM library defines
+Web APIs whose names collide with our builtins (e.g. `Storage`). `console`, `setTimeout`, etc. are
+declared by the `.d.ts` files themselves, so they work under `ES2020` without `DOM` or `@types/node`.
 
 ## Using them with TypeScript (optional)
 
