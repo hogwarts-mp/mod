@@ -43,6 +43,19 @@ MODULE(world_players, {
         Framework::CoreModules::SetNetworkPeer(&server);
         Framework::CoreModules::SetReplication(repl);
 
+        // RAII teardown: unit.h's failed assertions `break` out of the IT body, which would skip the
+        // trailing cleanup and leave CoreModules pointing at a destroyed server/replication manager —
+        // cascading into misleading failures in later modules. A guard runs cleanup however the block
+        // exits. Declared before the NodeEngine so it tears down after the engine but while `server`
+        // (declared earlier) is still alive.
+        struct Teardown {
+            NetworkServer &server;
+            ~Teardown() {
+                Framework::CoreModules::Reset();
+                server.Shutdown();
+            }
+        } teardown {server};
+
         const auto typeId    = EntityRegistry::Get().TypeId(HogwartsMP::Shared::kHumanTypeName);
         const auto makeHuman = [&](MafiaNet::PeerGuid owner, const char *nick) -> HumanEntity * {
             auto *h = static_cast<HumanEntity *>(repl->CreateEntity(typeId));
@@ -110,12 +123,10 @@ MODULE(world_players, {
         }
         engine.Shutdown();
 
-        // Destroy entities while the peer is still up (BroadcastDestruction touches it), then clear the
-        // module registry and close the socket so later modules start clean.
+        // Destroy entities while the peer is still up (BroadcastDestruction touches it). The module
+        // registry reset + socket shutdown are handled by the Teardown guard above (runs on any exit).
         repl->DestroyEntity(p1);
         repl->DestroyEntity(p2);
         repl->DestroyEntity(npc);
-        Framework::CoreModules::Reset();
-        server.Shutdown();
     });
 });

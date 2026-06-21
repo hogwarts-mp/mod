@@ -10,6 +10,10 @@ MODULE(js_builtins, {
     using namespace Framework::Scripting;
 
     IT("registers World, Environment and entity classes into a JS context", {
+        // Start clean: a storage.json left by a previous run (or aborted test) would make the Storage
+        // assertions below (e.g. get('ut_missing') === undefined) flaky.
+        std::remove(HogwartsMP::Scripting::Storage::STORAGE_FILE);
+
         NodeEngine engine({});
         EQUALS(engine.Init(), ScriptingError::SCRIPTING_NONE);
 
