@@ -26,6 +26,46 @@ function bumpVisitCount() {
 
 const SEASONS = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 
+// Known weather-set names (game asset names, case-sensitive). /weather validates against this so a
+// typo gives clear feedback instead of silently applying nothing. This originated from an old test
+// resource and may not be exhaustive — add a name here if you confirm a valid preset is missing.
+const WEATHER_PRESETS = new Set([
+    "Clear",
+    "Default_PHY",
+    "Announce",
+    "Astronomy",
+    "Intro_01",
+    "MKT_Nov11",
+    "LightClouds_01",
+    "LightRain_01",
+    "Rainy",
+    "Misty_01",
+    "MistyOvercast_01",
+    "Overcast_01",
+    "Overcast_Heavy_01",
+    "Overcast_Windy_01",
+    "Stormy_01",
+    "StormyLarge_01",
+    "FIG_07_Storm",
+    "TestStormShort",
+    "TestWind",
+    "HighAltitudeOnly",
+    "ForbiddenForest_01",
+    "Sanctuary_Bog",
+    "Sanctuary_Coastal",
+    "Sanctuary_Forest",
+    "Sanctuary_Grasslands",
+    "Summer_Overcast_Heavy_01",
+    "Overcast_Heavy_Winter_01",
+    "Winter_Misty_01",
+    "Winter_Overcast_01",
+    "Winter_Overcast_Windy_01",
+    "Snow_01",
+    "Snow_Const",
+    "SnowLight_01",
+    "SnowShort",
+]);
+
 // --- Dev: server-spawned NPCs ---
 // World.spawnHuman(x, y, z) returns a server-owned human the clients render via
 // the student-proxy path; npc.destroy() despawns it. Also doubles as a
@@ -62,14 +102,20 @@ Events.on("clientReady", (player, data) => {
 
 Events.on("chatCommand", (player, message, command, args) => {
     switch (command) {
-        case "weather":
-            if (args.length < 1) {
+        case "weather": {
+            const name = args[0];
+            if (!name) {
                 player.sendChat("Usage: /weather <setName>");
                 break;
             }
-            Environment.setWeather(args[0]);
-            World.broadcastMessage(`[SERVER] Weather changed to ${args[0]}`);
+            if (!WEATHER_PRESETS.has(name)) {
+                player.sendChat(`[SERVER] Unknown weather preset '${name}'. See the gamemode README for valid names.`);
+                break;
+            }
+            Environment.setWeather(name);
+            World.broadcastMessage(`[SERVER] Weather changed to ${name}`);
             break;
+        }
 
         case "time": {
             const hour = parseInt(args[0], 10);
