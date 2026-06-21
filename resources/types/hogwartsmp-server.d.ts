@@ -49,8 +49,8 @@ interface Human extends Entity {
     readonly nickname: string;
     /** Send a chat line to this player. */
     sendChat(message: string): void;
-    /** Disconnect this player (real players only; no-op on NPCs). */
-    kick(reason?: string): void;
+    /** Disconnect this player (real players only; no-op on NPCs). Pass "" for no reason. */
+    kick(reason: string): void;
     /**
      * Send a named event to THIS player's client scripts (received via Core.Events.on(name, payload)).
      * `payloadJson` is sent verbatim and JSON.parsed on the client, so pass JSON text
@@ -109,6 +109,8 @@ declare const Storage: {
 interface ServerEvents {
     on(event: "playerConnect", handler: (player: Human) => void): void;
     on(event: "playerDisconnect", handler: (player: Human) => void): void;
+    // Reserved event name, but not emitted yet — the server has no death detection wired up, so a
+    // handler registered here is dispatchable but will never fire until that lands.
     on(event: "playerDied", handler: (player: Human) => void): void;
     on(event: "chatMessage", handler: (player: Human, message: string) => void): void;
     on(

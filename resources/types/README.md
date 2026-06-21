@@ -47,6 +47,20 @@ runtime only loads JavaScript. A minimal per-resource `tsconfig.json`:
 }
 ```
 
+## Gotchas
+
+- **Node APIs on the server.** The server is full Node, but these defs intentionally don't bundle
+  Node typings (the tsconfigs use `"types": []` to avoid `@types/node` leaking globals in). So
+  `require`, `process`, `Buffer`, etc. type-check as undefined even though they exist at runtime. If a
+  server script uses them, add `@types/node` and set `"types": ["node"]` in that resource's tsconfig.
+  (The *client* defs declare `require` directly because the client isn't Node — there's no
+  `@types/node` for the sandboxed V8 engine.)
+- **Multiple files in one resource share global scope.** With `"module": "CommonJS"`, a `.js` file
+  with no `import`/`export` is a global script, so two files that both write `const Events =
+  Core.Events;` at top level collide ("duplicate identifier"). Each resource ships a single `main.js`
+  today, so this only bites once resources grow — give each file at least one `export {}` (making it a
+  module) or use distinct top-level names.
+
 ## Keeping them current
 
 These are **hand-maintained** — there is no generator from the C++ (v8pp) bindings. When a builtin
