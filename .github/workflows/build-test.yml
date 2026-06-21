@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout MafiaHub Framework
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: MafiaHub/Framework
           ref: ${{ env.FRAMEWORK_REF }}
@@ -45,7 +45,7 @@ jobs:
           submodules: false
 
       - name: Checkout mod into the framework
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           path: code/projects/mod
 
@@ -61,7 +61,7 @@ jobs:
           cmakeVersion: "~3.31.0"
 
       - name: Restore compiler cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/ccache
           # Keyed on the commit so re-runs reuse the same entry instead of
