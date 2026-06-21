@@ -6,6 +6,8 @@
 
 #include "core/storage/key_value_store.h"
 
+#include <logging/logger.h>
+
 #include <string>
 #include <vector>
 
@@ -62,7 +64,9 @@ namespace HogwartsMP::Scripting {
       private:
         static void JsSet(std::string key, std::string value) {
             Store().Set(key, std::move(value));
-            Store().Save();
+            if (!Store().Save()) {
+                Framework::Logging::GetLogger("Scripting")->warn("Storage.set('{}') failed to persist to {}", key, STORAGE_FILE);
+            }
         }
 
         static void JsGet(const v8::FunctionCallbackInfo<v8::Value> &info) {
@@ -87,8 +91,8 @@ namespace HogwartsMP::Scripting {
 
         static bool Delete(std::string key) {
             const bool erased = Store().Erase(key);
-            if (erased) {
-                Store().Save();
+            if (erased && !Store().Save()) {
+                Framework::Logging::GetLogger("Scripting")->warn("Storage.delete('{}') failed to persist to {}", key, STORAGE_FILE);
             }
             return erased;
         }
