@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <filesystem>
 #include <fstream>
 
 namespace HogwartsMP::Core::Storage {
@@ -85,12 +86,29 @@ namespace HogwartsMP::Core::Storage {
             doc[key] = value;
         }
 
-        std::ofstream out(path, std::ios::trunc);
-        if (!out.is_open()) {
+        // Write to a temp file, then atomically rename it over the target. A crash, full disk, or
+        // power loss mid-write then leaves the previous file fully intact instead of a truncated or
+        // empty one — the old open-with-trunc approach could wipe the whole store on a failed write.
+        const std::string tmpPath = path + ".tmp";
+        {
+            std::ofstream out(tmpPath, std::ios::trunc | std::ios::binary);
+            if (!out.is_open()) {
+                return false;
+            }
+            out << doc.dump(2);
+            out.flush();
+            if (!out.good()) {
+                return false;
+            }
+        } // close the stream before renaming
+
+        std::error_code ec;
+        std::filesystem::rename(tmpPath, path, ec); // atomic on the same filesystem; replaces target
+        if (ec) {
+            std::filesystem::remove(tmpPath, ec); // best-effort cleanup; ignore failure
             return false;
         }
-        out << doc.dump(2);
-        return out.good();
+        return true;
     }
 
 } // namespace HogwartsMP::Core::Storage
