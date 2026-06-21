@@ -113,4 +113,10 @@ namespace HogwartsMP::Core {
 
     extern Globals gGlobals;
     extern std::unique_ptr<Application> gApplication;
+
+    // Re-derive the local player's pawn from the live world walk (SEH-guarded), returning nullptr when
+    // there is no current pawn (menu/loading, or after teardown). Prefer this over the latched
+    // gGlobals.localBipedPlayer in code that may run after the pawn is destroyed (e.g. client scripts):
+    // that global is write-once and never cleared on teardown, so it dangles after fast-travel/disconnect.
+    SDK::ABiped_Player *GetLiveLocalBiped();
 }
