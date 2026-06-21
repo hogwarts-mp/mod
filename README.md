@@ -40,6 +40,10 @@ Please check the open [issues](https://github.com/hogwarts-mp/mod/issues) since 
 
 We use **CMake** to build our projects, so you can use any of the supported build systems. We support **Windows**, **Linux**, and **MacOS** operating systems at the moment. You can follow the following instructions to learn how to use this repository [here](https://github.com/MafiaHub/Framework#add-a-multi-player-project-to-the-framework)
 
+## Scripting
+
+Server gameplay logic is written in JavaScript as **resources**. If you want to write a gamemode (events, chat commands, persistent state, weather, NPCs), see the script author's guide at [`resources/README.md`](resources/README.md). No C++ required.
+
 ## Current state
 
 At the moment, the mod isn't playable. It offers a stable and safe playground to experiment and reverse engineer the game:
