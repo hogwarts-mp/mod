@@ -1,8 +1,10 @@
-# Writing HogwartsMP Server Scripts
+# Writing HogwartsMP Scripts
 
 This guide is for **server operators and modders** who want to write gameplay logic for a
-HogwartsMP server. No C++ required — server scripts are plain **JavaScript**, run by the server in
-a Node.js runtime, so most of the Node standard library (timers, `console`, etc.) is available.
+HogwartsMP server. No C++ required — scripts are plain **JavaScript**. A resource can have a
+**server** script (runs on the dedicated server in a Node.js runtime) and/or a **client** script
+(runs in-game on each player's machine in a sandboxed V8). This guide covers the server API first
+(§1–§7), then client scripts (§8).
 
 > Looking for *how the scripting layer is built* or *what's planned next*? That's in the
 > repo-root design docs (`SCRIPTING_PLUGIN_IMPROVEMENTS.md`). This file is the **author's manual**
@@ -15,8 +17,9 @@ a Node.js runtime, so most of the Node standard library (timers, `console`, etc.
 - A **resource** is a folder under the server's `resources/` directory containing a
   `package.json` manifest plus your script files. The server discovers and starts every resource
   on boot.
-- Scripts are **server-authoritative**: they run on the server and tell clients what to do (spawn
-  an NPC, change the weather, send a chat line). There is no client-side scripting yet.
+- Server scripts are **authoritative**: they run on the dedicated server and decide game logic
+  (spawn an NPC, change the weather, send a chat line). **Client scripts** (§8) run in-game on each
+  player and handle presentation + local reads; the two talk over a small event channel.
 - Logic is **event-driven**: you register handlers on the event bus (`Core.Events`) and react to
   players connecting, chatting, running commands, etc.
 - **Document your resource.** Each resource should ship its own `README.md` describing *how to use
@@ -85,7 +88,7 @@ Inside `mafiahub`:
 | Field | Notes |
 |---|---|
 | `server` | Path to the server entry script, relative to the resource folder (e.g. `server/main.js`). |
-| `client` | Path to a client entry script. **Client scripting is not implemented yet** — listing client files only ships them to clients as assets; they are not executed. |
+| `client` | Path to a client entry script (e.g. `client/main.js`), relative to the resource folder. Runs in-game on each connecting player — see §8. |
 | `priority` | Higher loads later; use it to order resources. Default `0`. |
 | `errorBehavior` | What to do if the resource throws: `"stop"` (default), `"restart"`, or `"continue"`. |
 | `exports` | Array of names this resource exposes to other resources. |
@@ -93,7 +96,7 @@ Inside `mafiahub`:
 
 ---
 
-## 4. Events
+## 4. Server events
 
 Subscribe with `Core.Events.on(eventName, handler)`. The events the server currently fires:
 
@@ -111,7 +114,7 @@ Subscribe with `Core.Events.on(eventName, handler)`. The events the server curre
 
 ---
 
-## 5. API reference
+## 5. Server API reference
 
 These globals are available in every server script.
 
@@ -127,8 +130,8 @@ These globals are available in every server script.
   render it like any other player. Remove it with `human.destroy()`.
 
 ### `Environment`
-- `Environment.setWeather(name)` — set a weather preset by name (see the `wizard-test` resource for
-  the list of valid preset names).
+- `Environment.setWeather(name)` — set a weather preset by name. (The `gamemode` resource keeps a
+  validated list of valid preset names — see its README.)
 - `Environment.setTime(hour, minute)` — `hour` 0–23, `minute` 0–59.
 - `Environment.setDate(day, month)` — `day` 1–31, `month` 1–12.
 - `Environment.setSeason(season)` — `0`=spring, `1`=summer, `2`=autumn, `3`=winter.
@@ -242,3 +245,51 @@ Events.on("chatCommand", (player, message, command) => {
     }
 });
 ```
+
+---
+
+## 8. Client scripts
+
+A resource's `mafiahub.client` entry runs **in-game on each connecting player**, in a sandboxed V8
+engine — **not** Node. There's no `fs` / `net` / `child_process`; you get `console`, `setTimeout` /
+`setInterval`, `require` (for local `.js` within the resource), and the builtins below. Client
+scripts handle presentation and local reads; the server stays authoritative.
+
+Authoritative signatures for everything below live in
+[`types/hogwartsmp-client.d.ts`](types/hogwartsmp-client.d.ts) — `// @ts-check` + a `/// <reference>`
+to it gives you autocomplete in plain `.js` (see `types/README.md`).
+
+### `Game`
+- `Game.notify(text)` — show a line in the local chat UI.
+- `Game.emitServer(name, payloadJson)` — send a named event up to the server's scripts. `payloadJson`
+  is JSON text (use `JSON.stringify`); the server receives it via `Core.Events.on(name, (player, payload))`.
+
+### `LocalPlayer`
+- `LocalPlayer.getPosition()` → `{ x, y, z } | null` — the local pawn's world position, or `null`
+  before it has spawned (loading / menu / torn down).
+- `LocalPlayer.getRotation()` → `{ pitch, yaw, roll } | null` — degrees.
+
+### Receiving server events
+`Core.Events.on(name, payload)` handles events the server sent. The handler gets a **single**
+argument — the JSON-parsed payload (no `player`, since the event is addressed to this client):
+
+```js
+Core.Events.on("announce", (data) => {
+    Game.notify(`[ANNOUNCE] ${data.text}`);
+});
+```
+
+### The server ⇄ client event model
+| Direction | Server side | Client side |
+|---|---|---|
+| Server → one player | `player.emit(name, json)` | `Core.Events.on(name, (payload) => …)` |
+| Server → all clients | `World.emitAllClients(name, json)` | `Core.Events.on(name, (payload) => …)` |
+| Client → server | `Core.Events.on(name, (player, payload) => …)` | `Game.emitServer(name, json)` |
+
+Payloads cross the wire as JSON text: the sender passes `JSON.stringify(obj)` and the receiver gets
+the parsed object back. An empty payload calls the handler with no payload argument; a malformed
+(non-JSON) payload is dropped. **Client-emitted events are untrusted input** — any client can send any
+name/payload, so validate them server-side and don't gate authoritative logic on them.
+
+See `gamemode/client/main.js` for a working client script (handles `ping`/`announce`, reads the local
+position, and emits back to the server).
