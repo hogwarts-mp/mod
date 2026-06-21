@@ -19,6 +19,10 @@ a Node.js runtime, so most of the Node standard library (timers, `console`, etc.
   an NPC, change the weather, send a chat line). There is no client-side scripting yet.
 - Logic is **event-driven**: you register handlers on the event bus (`Core.Events`) and react to
   players connecting, chatting, running commands, etc.
+- **Document your resource.** Each resource should ship its own `README.md` describing *how to use
+  it* — its chat commands, config, and the events it emits/listens for. Keep it to the resource's own
+  surface (the engine API lives here and in `types/`, so don't duplicate it). See
+  [`gamemode/README.md`](gamemode/README.md) for the shape.
 
 Where resources live: the server loads from `resources/` relative to its working directory
 (in this repo that is `Framework/code/projects/mod/resources/`). The built-in `gamemode` resource
