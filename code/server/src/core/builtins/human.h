@@ -28,6 +28,14 @@ namespace HogwartsMP::Scripting {
         // and JSON.parsed on the client into the handler's single argument; pass JSON text.
         void Emit(std::string eventName, std::string payloadJson);
 
+        // Per-player persistent data, keyed to the player's stable identity (survives reconnect), not
+        // the network id. Backed by the Storage builtin's store, namespaced per player; values are
+        // strings (use JSON.stringify/parse). No-op / undefined for entities without an identity (NPCs).
+        void SetData(std::string key, std::string value);
+        bool HasData(std::string key);
+        bool DeleteData(std::string key);
+        static void JsGetData(const v8::FunctionCallbackInfo<v8::Value> &info);
+
         void Destroy();
 
         static void EventPlayerConnected(uint64_t networkId);

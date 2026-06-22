@@ -80,9 +80,14 @@ let npcWalkTimer = null;
 
 Events.on("playerConnect", (player) => {
     const visits = bumpVisitCount();
-    console.log(`[GAMEMODE] ${player.nickname} connected (visit #${visits})`);
+    // Per-player persistent count — keyed to the player's stable identity, so it survives reconnect
+    // (unlike the global counter, which is total connections). Demonstrates Human.getData/setData.
+    const mine = (parseInt(player.getData("visits") ?? "0", 10) || 0) + 1;
+    player.setData("visits", String(mine));
+
+    console.log(`[GAMEMODE] ${player.nickname} connected (server visit #${visits}, their visit #${mine})`);
     player.sendChat("[SERVER] Welcome to HogwartsMP! Commands: /weather /time /date /season");
-    player.sendChat(`[SERVER] You are visitor #${visits} since the server started keeping count.`);
+    player.sendChat(`[SERVER] Server visitor #${visits}; this is your visit #${mine}.`);
 });
 
 Events.on("playerDisconnect", (player) => {

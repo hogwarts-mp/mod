@@ -1,6 +1,9 @@
 #include "human.h"
 
 #include "events.h"
+#include "storage.h"
+
+#include "core/server.h"
 
 #include "shared/game/human.h"
 
@@ -29,6 +32,18 @@ namespace HogwartsMP::Scripting {
             EmitServerEvent(eventName, [networkId](v8::Isolate *isolate, v8::Local<v8::Context>, std::vector<v8::Local<v8::Value>> &args) {
                 args.push_back(v8pp::class_<Human>::create_object(isolate, networkId));
             });
+        }
+
+        // Storage key for a player's namespaced data, or "" when the entity has no stable identity
+        // (a server NPC, or identity not yet recorded). hwid-backed via the server map today; the
+        // identity source can change later without touching the script-facing API.
+        std::string PlayerDataKey(uint64_t networkId, const std::string &userKey) {
+            auto *server = Server::_serverRef;
+            if (!server) {
+                return "";
+            }
+            const std::string id = server->GetPlayerIdentity(networkId);
+            return id.empty() ? std::string() : "player:" + id + ":" + userKey;
         }
     } // namespace
 
@@ -88,6 +103,60 @@ namespace HogwartsMP::Scripting {
         peer->SendRPC(ev, MafiaNet::ToGuid(human->ownerGUID));
     }
 
+    void Human::SetData(std::string key, std::string value) {
+        const std::string storageKey = PlayerDataKey(GetId(), key);
+        if (storageKey.empty()) {
+            return;
+        }
+        Storage::Store().Set(storageKey, std::move(value));
+        if (!Storage::Store().Save()) {
+            Framework::Logging::GetLogger("Scripting")->warn("player.setData('{}') failed to persist", key);
+        }
+    }
+
+    bool Human::HasData(std::string key) {
+        const std::string storageKey = PlayerDataKey(GetId(), key);
+        return !storageKey.empty() && Storage::Store().Has(storageKey);
+    }
+
+    bool Human::DeleteData(std::string key) {
+        const std::string storageKey = PlayerDataKey(GetId(), key);
+        if (storageKey.empty()) {
+            return false;
+        }
+        const bool erased = Storage::Store().Erase(storageKey);
+        if (erased && !Storage::Store().Save()) {
+            Framework::Logging::GetLogger("Scripting")->warn("player.deleteData('{}') failed to persist", key);
+        }
+        return erased;
+    }
+
+    void Human::JsGetData(const v8::FunctionCallbackInfo<v8::Value> &info) {
+        auto *isolate = info.GetIsolate();
+        if (info.Length() < 1 || !info[0]->IsString()) {
+            isolate->ThrowException(v8::Exception::TypeError(v8pp::to_v8(isolate, "getData(key) requires a string key")));
+            return;
+        }
+        auto *self = v8pp::class_<Human>::unwrap_object(isolate, info.This());
+        if (!self) {
+            info.GetReturnValue().SetUndefined();
+            return;
+        }
+        const auto key               = v8pp::from_v8<std::string>(isolate, info[0]);
+        const std::string storageKey = PlayerDataKey(self->GetId(), key);
+        if (storageKey.empty()) {
+            info.GetReturnValue().SetUndefined();
+            return;
+        }
+        const auto value = Storage::Store().Get(storageKey);
+        if (value) {
+            info.GetReturnValue().Set(v8pp::to_v8(isolate, *value));
+        }
+        else {
+            info.GetReturnValue().SetUndefined();
+        }
+    }
+
     void Human::Destroy() {
         auto *human = ResolveHuman(GetId());
         auto *repl  = Framework::CoreModules::GetReplication();
@@ -119,6 +188,9 @@ namespace HogwartsMP::Scripting {
             .function("toString", &Human::ToString)
             .function("sendChat", &Human::SendChat)
             .function("emit", &Human::Emit)
+            .function("setData", &Human::SetData)
+            .function("hasData", &Human::HasData)
+            .function("deleteData", &Human::DeleteData)
             .function("destroy", &Human::Destroy);
 
         auto protoTemplate = cls->class_function_template()->PrototypeTemplate();
@@ -130,6 +202,12 @@ namespace HogwartsMP::Scripting {
                 auto *self = v8pp::class_<Human>::unwrap_object(info.GetIsolate(), info.This());
                 if (self) info.GetReturnValue().Set(v8pp::to_v8(info.GetIsolate(), self->GetNickname()));
             });
+
+        // getData returns undefined for a missing key, so it's a raw FunctionTemplate (like Storage.get)
+        // rather than a typed v8pp function.
+        protoTemplate->Set(
+            v8pp::to_v8(isolate, "getData").As<v8::Name>(),
+            v8::FunctionTemplate::New(isolate, &Human::JsGetData));
         return *cls;
     }
 
