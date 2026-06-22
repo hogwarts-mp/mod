@@ -10,7 +10,9 @@
 #include <v8pp/module.hpp>
 
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace HogwartsMP::Scripting {
     namespace {
@@ -104,6 +106,59 @@ namespace HogwartsMP::Scripting {
             obj->Set(ctx, v8pp::to_v8(isolate, "roll"), v8pp::to_v8(isolate, rot.Roll)).Check();
             info.GetReturnValue().Set(obj);
         }
+
+        // LocalPlayer.getProp(name) -> number | boolean | string | null | undefined. Generic read of a
+        // property off the local pawn by name. null = no pawn; undefined = property not found or an
+        // unsupported type (structs/objects come in a later reflection slice). Use getPropNames() to
+        // discover what's readable.
+        void JsGetProp(const v8::FunctionCallbackInfo<v8::Value> &info) {
+            auto *isolate = info.GetIsolate();
+            if (info.Length() < 1 || !info[0]->IsString()) {
+                isolate->ThrowException(v8::Exception::TypeError(v8pp::to_v8(isolate, "getProp(name) requires a string name")));
+                return;
+            }
+            void *actor = LocalActor();
+            if (!actor) {
+                info.GetReturnValue().SetNull();
+                return;
+            }
+            const auto name = v8pp::from_v8<std::string>(isolate, info[0]);
+            std::visit(
+                [&](const auto &v) {
+                    using T = std::decay_t<decltype(v)>;
+                    if constexpr (std::is_same_v<T, bool>) {
+                        info.GetReturnValue().Set(v8::Boolean::New(isolate, v));
+                    }
+                    else if constexpr (std::is_same_v<T, int64_t>) {
+                        info.GetReturnValue().Set(v8::Number::New(isolate, static_cast<double>(v)));
+                    }
+                    else if constexpr (std::is_same_v<T, double>) {
+                        info.GetReturnValue().Set(v8::Number::New(isolate, v));
+                    }
+                    else if constexpr (std::is_same_v<T, std::string>) {
+                        info.GetReturnValue().Set(v8pp::to_v8(isolate, v));
+                    }
+                    else { // std::monostate — property not found or unsupported type
+                        info.GetReturnValue().SetUndefined();
+                    }
+                },
+                HogwartsMP::Core::UE4::ReadProperty(actor, name.c_str()));
+        }
+
+        // LocalPlayer.getPropNames() -> string[]. Every property name on the local pawn's class chain,
+        // a discovery aid for getProp (can be large). Empty when there's no pawn.
+        void JsGetPropNames(const v8::FunctionCallbackInfo<v8::Value> &info) {
+            auto *isolate            = info.GetIsolate();
+            auto ctx                 = isolate->GetCurrentContext();
+            v8::Local<v8::Array> arr = v8::Array::New(isolate);
+            if (void *actor = LocalActor()) {
+                const auto names = HogwartsMP::Core::UE4::ListPropertyNames(actor);
+                for (uint32_t i = 0; i < names.size(); ++i) {
+                    arr->Set(ctx, i, v8pp::to_v8(isolate, names[i])).Check();
+                }
+            }
+            info.GetReturnValue().Set(arr);
+        }
     } // namespace
 
     void ClientGame::Register(v8::Isolate *isolate, v8::Local<v8::Object> global) {
@@ -125,6 +180,12 @@ namespace HogwartsMP::Scripting {
             .Check();
         localPlayer->Set(ctx, v8pp::to_v8(isolate, "getRotation"),
                          v8::FunctionTemplate::New(isolate, &JsGetRotation)->GetFunction(ctx).ToLocalChecked())
+            .Check();
+        localPlayer->Set(ctx, v8pp::to_v8(isolate, "getProp"),
+                         v8::FunctionTemplate::New(isolate, &JsGetProp)->GetFunction(ctx).ToLocalChecked())
+            .Check();
+        localPlayer->Set(ctx, v8pp::to_v8(isolate, "getPropNames"),
+                         v8::FunctionTemplate::New(isolate, &JsGetPropNames)->GetFunction(ctx).ToLocalChecked())
             .Check();
         global->Set(ctx, v8pp::to_v8(isolate, "LocalPlayer"), localPlayer).Check();
     }

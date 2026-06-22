@@ -191,6 +191,64 @@ namespace HogwartsMP::Core::UE4 {
             reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal());
     }
 
+    PropertyValue ReadProperty(void *obj, const char *name) {
+        if (!obj) {
+            return std::monostate{};
+        }
+        auto *prop = FindPropertyInChain(static_cast<UObjectBase *>(obj)->GetClass(), name);
+        if (!prop) {
+            return std::monostate{};
+        }
+        auto *base      = reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal();
+        const auto type = narrow(prop->GetClass()->GetFName());
+
+        // Each branch returns an exact variant alternative, so there's no converting-constructor
+        // ambiguity (bool / int64_t / double / std::string are picked directly).
+        if (type == "BoolProperty") {
+            // Bitfield bools: same ByteOffset/ByteMask handling as SetBoolProperty.
+            auto *bp           = static_cast<FBoolProperty *>(prop);
+            const uint8_t byte = *(reinterpret_cast<uint8_t *>(obj) + bp->GetOffset_ForInternal() + bp->ByteOffset);
+            return (byte & bp->ByteMask) != 0;
+        }
+        if (type == "IntProperty") {
+            return static_cast<int64_t>(*reinterpret_cast<int32_t *>(base));
+        }
+        if (type == "Int64Property") {
+            return *reinterpret_cast<int64_t *>(base);
+        }
+        if (type == "ByteProperty" || type == "EnumProperty") {
+            return static_cast<int64_t>(*reinterpret_cast<uint8_t *>(base));
+        }
+        if (type == "FloatProperty") {
+            return static_cast<double>(*reinterpret_cast<float *>(base));
+        }
+        if (type == "DoubleProperty") {
+            return *reinterpret_cast<double *>(base);
+        }
+        if (type == "NameProperty") {
+            return narrow(*reinterpret_cast<FName *>(base));
+        }
+        if (type == "StrProperty") {
+            return narrow(*reinterpret_cast<FString *>(base));
+        }
+        // Structs/objects/arrays etc. intentionally unsupported here (monostate) — they need typed
+        // handling (and object handles), a later reflection-bridge slice.
+        return std::monostate{};
+    }
+
+    std::vector<std::string> ListPropertyNames(void *obj) {
+        std::vector<std::string> names;
+        if (!obj) {
+            return names;
+        }
+        for (UStruct *s = static_cast<UObjectBase *>(obj)->GetClass(); s; s = s->GetSuperStruct()) {
+            for (FField *f = s->ChildProperties; f; f = f->Next) {
+                names.push_back(narrow(f->GetFName()));
+            }
+        }
+        return names;
+    }
+
     std::string AssetPath(UObjectBase *obj) {
         if (!obj) {
             return "(null)";

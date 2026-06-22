@@ -275,6 +275,11 @@ to it gives you autocomplete in plain `.js` (see `types/README.md`).
 - `LocalPlayer.getPosition()` → `{ x, y, z } | null` — the local pawn's world position, or `null`
   before it has spawned (loading / menu / torn down).
 - `LocalPlayer.getRotation()` → `{ pitch, yaw, roll } | null` — degrees.
+- `LocalPlayer.getProp(name)` → `number | boolean | string | null | undefined` — generic reflection
+  read of a property off the local pawn by name (scalars + name/string). `null` = no pawn; `undefined`
+  = property not found or an unsupported type (structs/objects aren't exposed yet).
+- `LocalPlayer.getPropNames()` → `string[]` — every property name on the pawn's class chain; use it to
+  discover what `getProp` can read (the list can be large).
 
 ### Receiving server events
 `Core.Events.on(name, payload)` handles events the server sent. The handler gets a **single**
