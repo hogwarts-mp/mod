@@ -249,6 +249,58 @@ namespace HogwartsMP::Core::UE4 {
         return names;
     }
 
+    namespace {
+        // Split "A.B.C" into {"A","B","C"}. Empty/sole-empty segments are skipped so a stray dot can't
+        // produce an empty hop.
+        std::vector<std::string> SplitPath(const std::string &path) {
+            std::vector<std::string> segs;
+            size_t start = 0;
+            while (start <= path.size()) {
+                const size_t dot = path.find('.', start);
+                const size_t end = (dot == std::string::npos) ? path.size() : dot;
+                if (end > start) {
+                    segs.push_back(path.substr(start, end - start));
+                }
+                if (dot == std::string::npos) {
+                    break;
+                }
+                start = dot + 1;
+            }
+            return segs;
+        }
+
+        // Hop object-typed properties named by `hops` from `obj`; nullptr if any hop is missing/non-object.
+        void *FollowObjectHops(void *obj, const std::vector<std::string> &hops, size_t count) {
+            void *cur = obj;
+            for (size_t i = 0; i < count && cur; ++i) {
+                cur = ReadObjectProperty(cur, hops[i].c_str());
+            }
+            return cur;
+        }
+    } // namespace
+
+    PropertyValue ReadPropertyPath(void *obj, const std::string &path) {
+        if (!obj) {
+            return std::monostate{};
+        }
+        const auto segs = SplitPath(path);
+        if (segs.empty()) {
+            return std::monostate{};
+        }
+        // Hop all segments but the last (those must be object properties), then read the final scalar.
+        void *target = FollowObjectHops(obj, segs, segs.size() - 1);
+        if (!target) {
+            return std::monostate{};
+        }
+        return ReadProperty(target, segs.back().c_str());
+    }
+
+    std::vector<std::string> ListPropertyNamesPath(void *obj, const std::string &path) {
+        const auto segs  = SplitPath(path);
+        void *target     = FollowObjectHops(obj, segs, segs.size());
+        return target ? ListPropertyNames(target) : std::vector<std::string>{};
+    }
+
     std::string AssetPath(UObjectBase *obj) {
         if (!obj) {
             return "(null)";

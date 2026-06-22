@@ -107,14 +107,15 @@ namespace HogwartsMP::Scripting {
             info.GetReturnValue().Set(obj);
         }
 
-        // LocalPlayer.getProp(name) -> number | boolean | string | null | undefined. Generic read of a
-        // property off the local pawn by name. null = no pawn; undefined = property not found or an
-        // unsupported type (structs/objects come in a later reflection slice). Use getPropNames() to
-        // discover what's readable.
+        // LocalPlayer.getProp(path) -> number | boolean | string | null | undefined. Reads a property
+        // off the local pawn. `path` is a property name, or a dotted path that hops object properties
+        // (e.g. "HealthComponent.CurrentHealth") to reach a component/sub-object. null = no pawn;
+        // undefined = property not found or an unsupported type (structs/objects aren't read). Use
+        // getPropNames(path) to discover what's readable at each level.
         void JsGetProp(const v8::FunctionCallbackInfo<v8::Value> &info) {
             auto *isolate = info.GetIsolate();
             if (info.Length() < 1 || !info[0]->IsString()) {
-                isolate->ThrowException(v8::Exception::TypeError(v8pp::to_v8(isolate, "getProp(name) requires a string name")));
+                isolate->ThrowException(v8::Exception::TypeError(v8pp::to_v8(isolate, "getProp(path) requires a string path")));
                 return;
             }
             void *actor = LocalActor();
@@ -122,7 +123,7 @@ namespace HogwartsMP::Scripting {
                 info.GetReturnValue().SetNull();
                 return;
             }
-            const auto name = v8pp::from_v8<std::string>(isolate, info[0]);
+            const auto path = v8pp::from_v8<std::string>(isolate, info[0]);
             std::visit(
                 [&](const auto &v) {
                     using T = std::decay_t<decltype(v)>;
@@ -142,17 +143,19 @@ namespace HogwartsMP::Scripting {
                         info.GetReturnValue().SetUndefined();
                     }
                 },
-                HogwartsMP::Core::UE4::ReadProperty(actor, name.c_str()));
+                HogwartsMP::Core::UE4::ReadPropertyPath(actor, path));
         }
 
-        // LocalPlayer.getPropNames() -> string[]. Every property name on the local pawn's class chain,
-        // a discovery aid for getProp (can be large). Empty when there's no pawn.
+        // LocalPlayer.getPropNames(path?) -> string[]. Property names of the local pawn, or — given a
+        // dotted object path — of the object reached by hopping it (e.g. "HealthComponent"). A discovery
+        // aid for getProp (can be large). Empty when there's no pawn or the path doesn't resolve.
         void JsGetPropNames(const v8::FunctionCallbackInfo<v8::Value> &info) {
             auto *isolate            = info.GetIsolate();
             auto ctx                 = isolate->GetCurrentContext();
             v8::Local<v8::Array> arr = v8::Array::New(isolate);
             if (void *actor = LocalActor()) {
-                const auto names = HogwartsMP::Core::UE4::ListPropertyNames(actor);
+                const std::string path = (info.Length() >= 1 && info[0]->IsString()) ? v8pp::from_v8<std::string>(isolate, info[0]) : std::string();
+                const auto names       = HogwartsMP::Core::UE4::ListPropertyNamesPath(actor, path);
                 for (uint32_t i = 0; i < names.size(); ++i) {
                     arr->Set(ctx, i, v8pp::to_v8(isolate, names[i])).Check();
                 }
