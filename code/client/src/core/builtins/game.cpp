@@ -1,6 +1,7 @@
 #include "game.h"
 
 #include "core/application.h"
+#include "core/teleport.h"
 #include "core/ue4_reflection.h"
 
 #include <integrations/shared/rpc/emit_lua_event.h>
@@ -162,6 +163,33 @@ namespace HogwartsMP::Scripting {
             }
             info.GetReturnValue().Set(arr);
         }
+
+        // LocalPlayer.fastTravel(name) -> boolean. Teleport the local player to a named fast-travel
+        // point via the game's FastTravelManager. Returns false if `name` isn't a known destination
+        // (see getFastTravelLocations) or fast travel isn't available right now. Curated + validated, so
+        // it can't be pointed at arbitrary functions/places.
+        void JsFastTravel(const v8::FunctionCallbackInfo<v8::Value> &info) {
+            auto *isolate = info.GetIsolate();
+            if (info.Length() < 1 || !info[0]->IsString()) {
+                isolate->ThrowException(v8::Exception::TypeError(v8pp::to_v8(isolate, "fastTravel(name) requires a string name")));
+                return;
+            }
+            const auto name = v8pp::from_v8<std::string>(isolate, info[0]);
+            info.GetReturnValue().Set(v8::Boolean::New(isolate, HogwartsMP::Core::FastTravelTo(name)));
+        }
+
+        // LocalPlayer.getFastTravelLocations() -> string[]. The known destination names accepted by
+        // fastTravel().
+        void JsGetFastTravelLocations(const v8::FunctionCallbackInfo<v8::Value> &info) {
+            auto *isolate    = info.GetIsolate();
+            auto ctx         = isolate->GetCurrentContext();
+            const auto &locs = HogwartsMP::Core::FastTravelLocations();
+            v8::Local<v8::Array> arr = v8::Array::New(isolate, static_cast<int>(locs.size()));
+            for (uint32_t i = 0; i < locs.size(); ++i) {
+                arr->Set(ctx, i, v8pp::to_v8(isolate, std::string(locs[i]))).Check();
+            }
+            info.GetReturnValue().Set(arr);
+        }
     } // namespace
 
     void ClientGame::Register(v8::Isolate *isolate, v8::Local<v8::Object> global) {
@@ -189,6 +217,12 @@ namespace HogwartsMP::Scripting {
             .Check();
         localPlayer->Set(ctx, v8pp::to_v8(isolate, "getPropNames"),
                          v8::FunctionTemplate::New(isolate, &JsGetPropNames)->GetFunction(ctx).ToLocalChecked())
+            .Check();
+        localPlayer->Set(ctx, v8pp::to_v8(isolate, "fastTravel"),
+                         v8::FunctionTemplate::New(isolate, &JsFastTravel)->GetFunction(ctx).ToLocalChecked())
+            .Check();
+        localPlayer->Set(ctx, v8pp::to_v8(isolate, "getFastTravelLocations"),
+                         v8::FunctionTemplate::New(isolate, &JsGetFastTravelLocations)->GetFunction(ctx).ToLocalChecked())
             .Check();
         global->Set(ctx, v8pp::to_v8(isolate, "LocalPlayer"), localPlayer).Check();
     }
