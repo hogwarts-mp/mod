@@ -56,14 +56,20 @@ declare const LocalPlayer: {
     /** The local pawn's rotation (degrees), or null before it has spawned. */
     getRotation(): Rotator | null;
     /**
-     * Generic reflection read of a property off the local pawn by name. Supports scalar types
-     * (bool/int/byte/enum/float/double) and name/string. Returns `null` when there's no pawn, and
-     * `undefined` when the property isn't found or is an unsupported type (structs/objects aren't
-     * exposed yet). Use `getPropNames()` to discover what's readable.
+     * Generic reflection read of a property off the local pawn. `path` is a property name, or a dotted
+     * path that hops object properties to reach a component/sub-object (e.g.
+     * `"HealthComponent.CurrentHealth"`). Supports scalar types (bool/int/byte/enum/float/double) and
+     * name/string. Returns `null` when there's no pawn, and `undefined` when the property isn't found
+     * or is an unsupported type (structs/objects aren't read). Use `getPropNames(path)` to discover
+     * what's readable at each level.
      */
-    getProp(name: string): number | boolean | string | null | undefined;
-    /** Every property name on the local pawn's class chain — a discovery aid for getProp. Can be large. */
-    getPropNames(): string[];
+    getProp(path: string): number | boolean | string | null | undefined;
+    /**
+     * Property names of the local pawn, or — given a dotted object path — of the object reached by
+     * hopping it (e.g. `getPropNames("HealthComponent")`). A discovery aid for `getProp` (can be
+     * large); empty if there's no pawn or the path doesn't resolve.
+     */
+    getPropNames(path?: string): string[];
 };
 
 // --- Event bus ---

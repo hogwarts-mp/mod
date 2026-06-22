@@ -66,6 +66,17 @@ namespace HogwartsMP::Core::UE4 {
     // ReadProperty can be called with. Can be large.
     std::vector<std::string> ListPropertyNames(void *obj);
 
+    // Dotted-path variants: hop object-typed properties from `obj` (e.g. a component), then act on the
+    // final object. `path` = "A.B.C" follows object properties A, B and reads scalar C. Each hop and
+    // the final read resolve fresh from `obj` in one call — so when `obj` is the live pawn there are no
+    // stored handles to dangle. A hop through a missing/non-object property yields None / empty.
+    // (Following references to objects that aren't owned sub-objects of `obj` is at the caller's risk —
+    // the stored pointer could be stale; full liveness validation is a later slice.)
+    PropertyValue ReadPropertyPath(void *obj, const std::string &path);
+
+    // List the property names of the object reached by hopping `path` (empty path = `obj` itself).
+    std::vector<std::string> ListPropertyNamesPath(void *obj, const std::string &path);
+
     // Full UE4 asset path for an object: outer chain joined onto the package
     // path, e.g. "/Game/RiggedObjects/.../SK_Foo.SK_Foo" — the form
     // LoadObjectByPath expects.
