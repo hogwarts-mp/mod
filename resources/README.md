@@ -283,6 +283,12 @@ to it gives you autocomplete in plain `.js` (see `types/README.md`).
 - `LocalPlayer.getPropNames(path?)` → `string[]` — property names of the pawn, or of the object reached
   by a dotted path (e.g. `getPropNames("HealthComponent")`). Use it to discover what `getProp` can read
   at each level (the list can be large).
+- `LocalPlayer.fastTravel(name)` → `boolean` — teleport the local player to a named fast-travel point
+  (game's FastTravelManager). Returns `true` if the fast-travel was *requested* (known name + manager
+  available; not a guarantee the game finished it), `false` if `name` isn't a known destination or fast
+  travel isn't available right now. Game-validated, so it can't place you out of bounds. e.g.
+  `LocalPlayer.fastTravel("FT_HW_GreatHall")`.
+- `LocalPlayer.getFastTravelLocations()` → `string[]` — the destination names `fastTravel` accepts.
 
 ### Receiving server events
 `Core.Events.on(name, payload)` handles events the server sent. The handler gets a **single**

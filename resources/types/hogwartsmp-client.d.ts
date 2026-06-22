@@ -70,6 +70,16 @@ declare const LocalPlayer: {
      * large); empty if there's no pawn or the path doesn't resolve.
      */
     getPropNames(path?: string): string[];
+    /**
+     * Teleport the local player to a named fast-travel point (via the game's FastTravelManager).
+     * Returns `true` if the fast-travel was **requested** — i.e. `name` is a known destination and the
+     * manager is available — which is not a guarantee the game finished the teleport. Returns `false`
+     * if `name` isn't a known destination (see `getFastTravelLocations`) or fast travel isn't available
+     * right now (e.g. not in-world). Destinations are game-validated, so this can't place you out of bounds.
+     */
+    fastTravel(name: string): boolean;
+    /** The known fast-travel destination names accepted by `fastTravel`. */
+    getFastTravelLocations(): string[];
 };
 
 // --- Event bus ---
