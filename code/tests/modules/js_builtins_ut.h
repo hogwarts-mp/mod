@@ -92,6 +92,10 @@ MODULE(js_builtins, {
             EQUALS(evalBool("Object.getOwnPropertyNames(EntityImpl.prototype).includes('rotation')"), true);
             EQUALS(evalBool("typeof HumanImpl.prototype.sendChat === 'function'"), true);
             EQUALS(evalBool("typeof HumanImpl.prototype.emit === 'function'"), true);
+            EQUALS(evalBool("typeof HumanImpl.prototype.getData === 'function'"), true);
+            EQUALS(evalBool("typeof HumanImpl.prototype.setData === 'function'"), true);
+            EQUALS(evalBool("typeof HumanImpl.prototype.hasData === 'function'"), true);
+            EQUALS(evalBool("typeof HumanImpl.prototype.deleteData === 'function'"), true);
             EQUALS(evalBool("typeof HumanImpl.prototype.destroy === 'function'"), true);
             EQUALS(evalBool("Object.getOwnPropertyNames(HumanImpl.prototype).includes('nickname')"), true);
         }

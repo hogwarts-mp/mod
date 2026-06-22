@@ -59,6 +59,11 @@ namespace HogwartsMP {
             return;
         }
 
+        // Record the player's stable identity (server-side only) so scripts can persist per-player
+        // data via Human.getData/setData. Eventually swap for a verified account id later
+        // without touching the script API.
+        SetPlayerIdentity(human->GetNetworkID(), data.hardwareID);
+
         BroadcastChatMessage(fmt::format("Player {} has joined the session!", data.nickname));
         Scripting::Human::EventPlayerConnected(human->GetNetworkID());
     }
@@ -73,6 +78,7 @@ namespace HogwartsMP {
         BroadcastChatMessage(fmt::format("Player {} has left the session!", nickname));
         if (human) {
             Scripting::Human::EventPlayerDisconnected(human->GetNetworkID());
+            ClearPlayerIdentity(human->GetNetworkID());
         }
     }
 

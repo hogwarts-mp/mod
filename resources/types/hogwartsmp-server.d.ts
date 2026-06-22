@@ -57,6 +57,17 @@ interface Human extends Entity {
      * (e.g. JSON.stringify(obj)). Empty -> the client handler is called with no argument.
      */
     emit(eventName: string, payloadJson: string): void;
+    /**
+     * Per-player persistent data, keyed to the player's stable identity (survives reconnect — unlike
+     * `id` or `nickname`). Backed by the same store as `Storage`, namespaced per player. Values are
+     * strings (use JSON.stringify/parse). On an entity with no identity (a server NPC), `getData`
+     * returns `undefined` and the setters are no-ops.
+     */
+    getData(key: string): string | undefined;
+    setData(key: string, value: string): void;
+    hasData(key: string): boolean;
+    /** Returns true if a key was removed. */
+    deleteData(key: string): boolean;
     /** Despawn. Affects only server-owned NPCs; real players are managed by the network layer. */
     destroy(): void;
 }

@@ -9,8 +9,9 @@ This is a **how-to-use** guide for the resource. For the scripting API itself (`
 
 ## What it does
 - Relays player chat to everyone (`nickname: message`).
-- Welcomes players on join and tracks a persistent **visit counter** (stored in `storage.json` under
-  the key `visits`, so it survives restarts).
+- Welcomes players on join and tracks both a **global** visit counter (total connections) and a
+  **per-player** one (keyed to the player's stable identity, so it survives their reconnect). Both
+  persist in `storage.json`.
 - Exposes the chat commands below.
 - On the client side, shows a "scripting is live" line on connect and reacts to the server's `ping`
   / `announce` events.
@@ -44,6 +45,7 @@ came from an older test resource and may not be exhaustive — extend it if you 
 
 ## Persistent state
 - `storage.json` → `visits`: total connections counted since the store was created.
+- Per-player visit count via `player.setData("visits", …)` (stored under the player's stable identity).
 
 ## Files
 - `package.json` — manifest (`mafiahub.server` / `mafiahub.client` entry points).

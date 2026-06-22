@@ -159,9 +159,9 @@ const n = (parseInt(Storage.get("visits") ?? "0", 10) || 0) + 1;
 Storage.set("visits", String(n));
 ```
 
-> v1 is a **single global namespace**. There is no per-player store yet, because the server has no
-> stable identity that survives a reconnect. For now, key per-player data yourself with whatever
-> stable id you have, e.g. `Storage.set("points:" + player.nickname, "10")`.
+> `Storage` is a **single global namespace**. For data scoped to one player, use `player.getData` /
+> `player.setData` (see `Human` below) — those persist against the player's **stable identity**
+> (survives reconnect), so you don't have to key by the unstable `nickname` yourself.
 
 ### `Human` (the player / NPC object)
 Properties:
@@ -173,6 +173,13 @@ Properties:
 Methods:
 - `human.sendChat(message)` — send a chat line to this player.
 - `human.kick(reason)` — disconnect this player (real players only).
+- **Per-player persistent data** — keyed to the player's stable identity (survives reconnect, unlike
+  `id`/`nickname`); values are strings (use `JSON.stringify`/`parse`). No-op / `undefined` on
+  server NPCs (no identity):
+  - `human.getData(key)` → `string | undefined`
+  - `human.setData(key, value)`
+  - `human.hasData(key)` → `boolean`
+  - `human.deleteData(key)` → `boolean`
 - `human.destroy()` — despawn. Only affects **server-owned** entities (NPCs from
   `World.spawnHuman`); real players are managed by the network layer and ignore this.
 

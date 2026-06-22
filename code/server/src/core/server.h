@@ -4,6 +4,10 @@
 
 #include "shared/game/weather.h"
 
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+
 namespace HogwartsMP {
     class Server: public Framework::Integrations::Server::Instance {
       private:
@@ -11,6 +15,11 @@ namespace HogwartsMP {
 
         // Server-authoritative environment state (replaces the old flecs Mod::Weather singleton).
         Shared::WeatherState _weather;
+
+        // Maps a connected player's NetworkID -> its stable identity. Kept
+        // server-side only and NOT on the replicated entity, so a player's identity is never leaked
+        // to other clients. Backs the per-player Storage exposed via Human.getData/setData.
+        std::unordered_map<uint64_t, std::string> _playerIdentities;
 
       public:
         void PostInit() override;
@@ -30,6 +39,19 @@ namespace HogwartsMP {
 
         Shared::WeatherState &GetWeather() {
             return _weather;
+        }
+
+        // Stable per-player identity, keyed by NetworkID. Set on connect, cleared
+        // on disconnect. Returns "" for an unknown id (e.g. a server NPC, or not yet connected).
+        void SetPlayerIdentity(uint64_t networkId, std::string identity) {
+            _playerIdentities[networkId] = std::move(identity);
+        }
+        void ClearPlayerIdentity(uint64_t networkId) {
+            _playerIdentities.erase(networkId);
+        }
+        std::string GetPlayerIdentity(uint64_t networkId) const {
+            const auto it = _playerIdentities.find(networkId);
+            return it != _playerIdentities.end() ? it->second : std::string();
         }
 
         void ModuleRegister(Framework::Scripting::Engine *engine) override;
