@@ -7,7 +7,10 @@
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
 
+#include <cstdint>
 #include <string>
+#include <variant>
+#include <vector>
 
 namespace HogwartsMP::Core::UE4 {
     // Equivalent of UE4SS's GetFunctionByNameInChain: walk the class hierarchy
@@ -49,6 +52,19 @@ namespace HogwartsMP::Core::UE4 {
     // TObjectPtr<T> is layout-compatible with T* in UE4.27). Returns nullptr
     // if the property is not found or the stored pointer is null.
     UObjectBase *ReadObjectProperty(void *obj, const char *name);
+
+    // A property value read generically by name (see ReadProperty). std::monostate = not found or an
+    // unsupported type; integral kinds (int/byte/enum) widen to int64_t, float/double to double.
+    using PropertyValue = std::variant<std::monostate, bool, int64_t, double, std::string>;
+
+    // Read a property by name off a UObject, dispatching on its reflected type. Supports the common
+    // scalars (bool / int / byte / enum / float / double) and name / string; unsupported types
+    // (structs, objects, arrays, ...) return std::monostate. Must run on the game thread.
+    PropertyValue ReadProperty(void *obj, const char *name);
+
+    // Every property name on the object's class chain — a discovery aid so scripts know what
+    // ReadProperty can be called with. Can be large.
+    std::vector<std::string> ListPropertyNames(void *obj);
 
     // Full UE4 asset path for an object: outer chain joined onto the package
     // path, e.g. "/Game/RiggedObjects/.../SK_Foo.SK_Foo" — the form

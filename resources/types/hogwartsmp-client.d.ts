@@ -55,6 +55,15 @@ declare const LocalPlayer: {
     getPosition(): Vec3 | null;
     /** The local pawn's rotation (degrees), or null before it has spawned. */
     getRotation(): Rotator | null;
+    /**
+     * Generic reflection read of a property off the local pawn by name. Supports scalar types
+     * (bool/int/byte/enum/float/double) and name/string. Returns `null` when there's no pawn, and
+     * `undefined` when the property isn't found or is an unsupported type (structs/objects aren't
+     * exposed yet). Use `getPropNames()` to discover what's readable.
+     */
+    getProp(name: string): number | boolean | string | null | undefined;
+    /** Every property name on the local pawn's class chain — a discovery aid for getProp. Can be large. */
+    getPropNames(): string[];
 };
 
 // --- Event bus ---
