@@ -5,6 +5,7 @@
 #include "aob_scan.h"
 #include "student_proxy.h"
 #include "ue4_natives.h"
+#include "ue4_reflection.h"
 
 #include <utils/safe_win32.h>
 
@@ -21,7 +22,9 @@
 #include <utils/string_utils.h>
 #include <imgui.h>
 
-static FUObjectArray *GObjectArray{nullptr};
+// Defined here (resolved in the InitFunction below) but shared via
+// ue4_natives.h so the reflection helpers can scan it.
+FUObjectArray *GObjectArray{nullptr};
 
 std::string narrow_(std::wstring_view str) {
     auto length = WideCharToMultiByte(CP_UTF8, 0, str.data(), (int)str.length(), nullptr, 0, nullptr, nullptr);
@@ -58,46 +61,6 @@ std::string get_full_name(UObjectBase *obj) {
     return narrow(c->GetFName()) + ' ' + obj_name;
 }
 
-UObjectBase *find_uobject(const char *obj_full_name) {
-    static std::unordered_map<std::string, UObjectBase *> obj_map{};
-    if (auto search = obj_map.find(obj_full_name); search != obj_map.end()) {
-        return search->second;
-    }
-
-    for (auto i = 0; i < GObjectArray->GetObjectArrayNum(); ++i) {
-        if (auto obj_item = GObjectArray->IndexToObject(i)) {
-            if (auto obj_base = obj_item->Object) {
-                auto full_name = get_full_name(obj_base);
-                if (full_name == obj_full_name) {
-                    obj_map[obj_full_name] = obj_base;
-                    return obj_base;
-                }
-            }
-        }
-    }
-
-    return nullptr;
-}
-
-std::vector<UObjectBase *> find_uobjects(const char *obj_full_name) {
-    std::vector<UObjectBase *> objects{};
-
-    static std::unordered_map<std::string, UObjectBase *> obj_map{};
-
-    for (auto i = 0; i < GObjectArray->GetObjectArrayNum(); ++i) {
-        if (auto obj_item = GObjectArray->IndexToObject(i)) {
-            if (auto obj_base = obj_item->Object) {
-                auto full_name = get_full_name(obj_base);
-                if (full_name == obj_full_name) {
-                    objects.push_back(obj_base);
-                }
-            }
-        }
-    }
-
-    return objects;
-}
-
 // Declarations (typedefs + externs) live in ue4_natives.h; the natives are
 // resolved in the InitFunction at the bottom of this file.
 UWorld__SpawnActor_t UWorld__SpawnActor     = nullptr;
@@ -106,6 +69,8 @@ UWorld__DestroyActor_t UWorld__DestroyActor = nullptr;
 UWorld **GWorld = nullptr;
 
 using namespace Framework::Utils::StringUtils;
+using HogwartsMP::Core::UE4::FindUClass;
+using HogwartsMP::Core::UE4::FindUFunction;
 
 void Playground_Tick() {
     // Game-thread pump: SpawnActor / StaticLoadObject / ProcessEvent must run
@@ -130,8 +95,8 @@ void Playground_Tick() {
         ImGui::Separator();
         ImGui::InputText("Location", teleportLocation, 250);
         if (ImGui::Button("Teleport")) {
-            UClass *fastTravelManager = (UClass *)find_uobject("Class /Script/Phoenix.FastTravelManager");
-            UFunction *fastTravelManagerGetter = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.Get");
+            UClass *fastTravelManager = FindUClass("Class /Script/Phoenix.FastTravelManager");
+            UFunction *fastTravelManagerGetter = FindUFunction("Function /Script/Phoenix.FastTravelManager.Get");
 
             UClass *fastTravelmanagerInsance{nullptr};
             fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void *)&fastTravelmanagerInsance);
@@ -141,7 +106,7 @@ void Playground_Tick() {
                 FString name(wideTeleportLocation.c_str());
                 Framework::Logging::GetLogger("Hooks")->info("Teleporting to {}, instance: {} !", teleportLocation, (void *)fastTravelmanagerInsance);
 
-                UFunction *fastTravelTo = (UFunction *)find_uobject("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
+                UFunction *fastTravelTo = FindUFunction("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
                 fastTravelmanagerInsance->ProcessEvent(fastTravelTo, (void *)&name);
             }
         }
@@ -149,7 +114,7 @@ void Playground_Tick() {
         ImGui::Separator();
         ImGui::InputText("UObject name", spawnObject, 250);
         if (ImGui::Button("Spawn Actor")) {
-            auto *foundObject = (UClass *)find_uobject(spawnObject);
+            auto *foundObject = FindUClass(spawnObject);
             if (!foundObject) {
                 Framework::Logging::GetLogger("Hooks")->info("Unable to find object !");
                 ImGui::End();

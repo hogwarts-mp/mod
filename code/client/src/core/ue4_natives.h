@@ -25,8 +25,9 @@ std::string narrow(const FString &fstr);
 std::string narrow(const FName &fname);
 std::string get_full_name(UObjectBase *obj);
 
-// Linear GUObjectArray scan, cached by full name. Game thread only.
-UObjectBase *find_uobject(const char *obj_full_name);
+// The game's global UObject table. Resolved (sigscanned) at init in
+// playground.cpp; consumed by the reflection helpers (UE4::FindUObject).
+extern FUObjectArray *GObjectArray;
 
 // Native UWorld::SpawnActor — the FVector+FRotator overload (the
 // engine/console/UE4SS one; re-derived via Ghidra, see game_layout.h).

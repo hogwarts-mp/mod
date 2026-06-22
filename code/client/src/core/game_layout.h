@@ -40,7 +40,7 @@ namespace HogwartsMP::Game {
     struct GameLayout {
         const char *version; // human label for the build this snapshot targets
 
-        // --- Core object access (CRITICAL: find_uobject / world / memory) ---
+        // --- Core object access (CRITICAL: FindUObject / world / memory) ---
         Aob gObjectArray;          // lea rcx,[GUObjectArray]; resolves to FUObjectArray*
         Aob gWorld;                // mov rbx,[GWorld]; resolves to UWorld**
         Aob gMalloc;               // resolves to FMalloc*

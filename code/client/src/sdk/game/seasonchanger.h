@@ -1,14 +1,6 @@
 #pragma once
 
-#include <vector>
-
-#include <sdk/types/uclass.h>
-
 namespace SDK {
-    class UClass;
-    class UFunction;
-    class UObjectBase;
-
     enum class ESeasonEnum : unsigned char {
         Season_Invalid = 0,
         Season_Fall = 1,
@@ -23,18 +15,11 @@ namespace SDK {
         ESeasonEnum NewSeason;
     };
 
-    UClass *SeasonChanger();
-    UFunction *SeasonChanger_SetCurrentSeason();
-    void SetSeason(ESeasonEnum season);
+    struct UScheduler_AdvanceHours_Params {
+    public:
+        int InHours;
+    };
 
-    std::vector<SDK::UClass *> USchedulers(); 
-    UFunction *UScheduler_AdvanceHours(); 
- 
-    struct UScheduler_AdvanceHours_Params 
-    { 
-    public: 
-        int InHours; 
-    }; 
- 
-    void AdvanceHours(int hours); 
+    void SetSeason(ESeasonEnum season);
+    void AdvanceHours(int hours);
 }

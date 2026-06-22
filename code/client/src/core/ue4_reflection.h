@@ -2,7 +2,7 @@
 // UE4 reflection plumbing shared by features that drive the game through its
 // own reflection (student proxies, appearance sync, ...). Everything here
 // MUST run on the game thread: ProcessEvent, StaticLoadObject and the
-// GUObjectArray scans behind find_uobject are not safe off-thread.
+// GUObjectArray scans behind FindUObject are not safe off-thread.
 
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
@@ -13,6 +13,23 @@
 #include <vector>
 
 namespace HogwartsMP::Core::UE4 {
+    // Linear GUObjectArray scan for a UObject by its full name
+    // ("Class /Script/Foo.Bar"), cached by name. Game thread only — the scan
+    // over the live object array is not safe off-thread.
+    UObjectBase *FindUObject(const char *objFullName);
+
+    // FindUObject + cast to UClass*, since most callers want a class. Returns
+    // nullptr if not found. (No type check — pass a "Class /Script/..." path.)
+    UClass *FindUClass(const char *classFullName);
+
+    // FindUObject + cast to UFunction*. Returns nullptr if not found.
+    // (No type check — pass a "Function /Script/..." path.)
+    UFunction *FindUFunction(const char *functionFullName);
+
+    // Like FindUObject but returns every match (e.g. multiple instances of the
+    // same class). Uncached — full GUObjectArray scan each call. Game thread only.
+    std::vector<UObjectBase *> FindUObjects(const char *objFullName);
+
     // Equivalent of UE4SS's GetFunctionByNameInChain: walk the class hierarchy
     // looking for a UFunction by short name. Avoids hardcoding declaring
     // classes for every engine function. Positive results are cached per
