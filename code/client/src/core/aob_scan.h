@@ -23,7 +23,7 @@
 
 namespace HogwartsMP::Core {
     // `optional` selects the severity of a missed scan:
-    //   false (default) = critical hook with a downstream consumer (find_uobject,
+    //   false (default) = critical hook with a downstream consumer (FindUObject,
     //                     world access, spawn, tick) -> log [error], it's a real
     //                     break that must be re-derived.
     //   true            = no-consumer hook (logging/trace/detection or an

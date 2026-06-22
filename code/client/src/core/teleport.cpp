@@ -6,14 +6,15 @@
 // SDK-heavy include last: the reversed UE headers tighten the MSVC warning state in a way that breaks
 // fmt's templates if they come before the framework/fmt headers (same ordering as ue4_reflection.cpp).
 #include "core/application.h"
+#include "core/ue4_reflection.h"
 
 #include <algorithm>
 #include <array>
 
-// todo move to sdk
-UObjectBase *find_uobject(const char *obj_full_name);
-
 namespace HogwartsMP::Core {
+    using UE4::FindUClass;
+    using UE4::FindUFunction;
+
     std::span<const std::string_view> FastTravelLocations() {
         static const auto locations = std::to_array<std::string_view>({"Azkaban", "BothyA", "FT_AnnounceDestA", "FT_AnnounceDestB", "FT_Azkaban", "FT_BlackOffice", "FT_CentralHogsmeade", "FT_Combat_DarkArts_Entry", "FT_Combat_DarkArts_Return", "FT_DeathHallows",
             "FT_DIVE_Vault_UnderwaterA_Surface", "FT_DIVE_Vault_UnderwaterA_VaultInt", "FT_DIVE_Vault_UnderwaterB_CO1_CO_AS_Surface", "FT_DIVE_Vault_UnderwaterB_CO1_CO_AS_VaultInt", "FT_DIVE_Vault_UnderwaterB_CO2_CO_AN_Surface", "FT_DIVE_Vault_UnderwaterB_CO2_CO_AN_VaultInt",
@@ -54,13 +55,13 @@ namespace HogwartsMP::Core {
         static UFunction *getter      = nullptr;
         static UFunction *fastTravelTo = nullptr;
         if (!manager) {
-            manager = reinterpret_cast<UClass *>(find_uobject("Class /Script/Phoenix.FastTravelManager"));
+            manager = FindUClass("Class /Script/Phoenix.FastTravelManager");
         }
         if (!getter) {
-            getter = reinterpret_cast<UFunction *>(find_uobject("Function /Script/Phoenix.FastTravelManager.Get"));
+            getter = FindUFunction("Function /Script/Phoenix.FastTravelManager.Get");
         }
         if (!fastTravelTo) {
-            fastTravelTo = reinterpret_cast<UFunction *>(find_uobject("Function /Script/Phoenix.FastTravelManager.FastTravel_To"));
+            fastTravelTo = FindUFunction("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
         }
         if (!manager || !getter || !fastTravelTo) {
             log->warn("FastTravelManager unavailable (manager={}, getter={}, fastTravelTo={})", fmt::ptr(manager), fmt::ptr(getter), fmt::ptr(fastTravelTo));

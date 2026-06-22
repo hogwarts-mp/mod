@@ -351,7 +351,7 @@ namespace {
     // ── The spawn itself ─────────────────────────────────────────────────────
 
     AActor *SpawnStudent(const FVector &pos, float yawDeg, bool female = false, int house = 0, UObjectBase **outSkinComp = nullptr) {
-        auto *cls = reinterpret_cast<UClass *>(find_uobject("Class /Script/Phoenix.Biped_Character"));
+        auto *cls = FindUClass("Class /Script/Phoenix.Biped_Character");
         if (!cls) {
             Log()->error("Biped_Character class not found");
             return nullptr;
@@ -396,7 +396,7 @@ namespace {
         } off{false};
         CallUFunction(actor, "SetActorTickEnabled", &off);
         CallUFunction(actor, "SetActorEnableCollision", &off);
-        if (auto *cmcCls = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.CharacterMovementComponent"))) {
+        if (auto *cmcCls = FindUClass("Class /Script/Engine.CharacterMovementComponent")) {
             struct {
                 UClass *ComponentClass;
                 UObjectBase *ReturnValue;
@@ -410,7 +410,7 @@ namespace {
 
         // Outfit goes on the existing CharacterMesh0 (the only SMC on a fresh
         // native Biped_Character).
-        auto *smcCls = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.SkeletalMeshComponent"));
+        auto *smcCls = FindUClass("Class /Script/Engine.SkeletalMeshComponent");
         struct {
             UClass *ComponentClass;
             UObjectBase *ReturnValue;
@@ -422,9 +422,9 @@ namespace {
             return finalize(actor);
         }
 
-        auto *skelMeshCls = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.SkeletalMesh"));
-        auto *matCls      = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.MaterialInterface"));
-        auto *texCls      = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.Texture2D"));
+        auto *skelMeshCls = FindUClass("Class /Script/Engine.SkeletalMesh");
+        auto *matCls      = FindUClass("Class /Script/Engine.MaterialInterface");
+        auto *texCls      = FindUClass("Class /Script/Engine.Texture2D");
 
         using namespace HogwartsMP::KitParams;
 
@@ -565,7 +565,7 @@ namespace {
         // Idle animation: raw sequence playback on the skin comp (bypasses the
         // starved AnimBPs), outfit master-posed to it. Try the gender-matched
         // idle first; fall through to the other if it fails.
-        auto *seqCls      = reinterpret_cast<UClass *>(find_uobject("Class /Script/Engine.AnimSequence"));
+        auto *seqCls      = FindUClass("Class /Script/Engine.AnimSequence");
         UObjectBase *idle = LoadObjectByPath(seqCls, IDLE_SEQ_PATHS[female ? 1 : 0]);
         if (!idle) {
             idle = LoadObjectByPath(seqCls, IDLE_SEQ_PATHS[female ? 0 : 1]);

@@ -31,6 +31,48 @@ namespace {
 } // namespace
 
 namespace HogwartsMP::Core::UE4 {
+    UObjectBase *FindUObject(const char *objFullName) {
+        static std::unordered_map<std::string, UObjectBase *> objMap{};
+        if (auto search = objMap.find(objFullName); search != objMap.end()) {
+            return search->second;
+        }
+
+        for (auto i = 0; i < GObjectArray->GetObjectArrayNum(); ++i) {
+            if (auto objItem = GObjectArray->IndexToObject(i)) {
+                if (auto objBase = objItem->Object) {
+                    if (get_full_name(objBase) == objFullName) {
+                        objMap[objFullName] = objBase;
+                        return objBase;
+                    }
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
+    UClass *FindUClass(const char *classFullName) {
+        return static_cast<UClass *>(FindUObject(classFullName));
+    }
+
+    UFunction *FindUFunction(const char *functionFullName) {
+        return static_cast<UFunction *>(FindUObject(functionFullName));
+    }
+
+    std::vector<UObjectBase *> FindUObjects(const char *objFullName) {
+        std::vector<UObjectBase *> objects{};
+        for (auto i = 0; i < GObjectArray->GetObjectArrayNum(); ++i) {
+            if (auto objItem = GObjectArray->IndexToObject(i)) {
+                if (auto objBase = objItem->Object) {
+                    if (get_full_name(objBase) == objFullName) {
+                        objects.push_back(objBase);
+                    }
+                }
+            }
+        }
+        return objects;
+    }
+
     UFunction *FindFunctionInChain(UObjectBase *obj, const char *name) {
         // Cache positive results only: a lookup that failed once (e.g. before
         // the class was fully loaded) must stay retryable. Keyed per class so
@@ -76,8 +118,8 @@ namespace HogwartsMP::Core::UE4 {
             return it->second;
         }
 
-        auto *lib = find_uobject("KismetStringLibrary /Script/Engine.Default__KismetStringLibrary");
-        auto *fn  = reinterpret_cast<UFunction *>(find_uobject("Function /Script/Engine.KismetStringLibrary.Conv_StringToName"));
+        auto *lib = FindUObject("KismetStringLibrary /Script/Engine.Default__KismetStringLibrary");
+        auto *fn  = FindUFunction("Function /Script/Engine.KismetStringLibrary.Conv_StringToName");
         if (!lib || !fn) {
             Log()->error("Conv_StringToName unavailable (lib={}, fn={})", (void *)lib, (void *)fn);
             return FName();

@@ -1,5 +1,8 @@
 #include "season_manager.h"
 
+#include <cstdlib>
+#include <vector>
+
 namespace HogwartsMP::Core::UI {
     void SeasonManager::SetSeason(SDK::ESeasonEnum season) {
         SDK::SetSeason(season);
