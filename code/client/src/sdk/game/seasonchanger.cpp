@@ -1,6 +1,6 @@
 #include "seasonchanger.h"
 
-#include "core/ue4_reflection.h"
+#include "sdk/reflection/ue4_reflection.h"
 
 using HogwartsMP::Core::UE4::FindUClass;
 using HogwartsMP::Core::UE4::FindUFunction;

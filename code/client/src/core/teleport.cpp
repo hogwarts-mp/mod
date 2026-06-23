@@ -6,7 +6,7 @@
 // SDK-heavy include last: the reversed UE headers tighten the MSVC warning state in a way that breaks
 // fmt's templates if they come before the framework/fmt headers (same ordering as ue4_reflection.cpp).
 #include "core/application.h"
-#include "core/ue4_reflection.h"
+#include "sdk/reflection/ue4_reflection.h"
 
 #include <algorithm>
 #include <array>

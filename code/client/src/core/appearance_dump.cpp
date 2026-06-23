@@ -20,7 +20,7 @@
 
 #include "application.h"
 #include "sdk/natives/ue4_natives.h"
-#include "ue4_reflection.h"
+#include "sdk/reflection/ue4_reflection.h"
 
 #include <logging/logger.h>
 

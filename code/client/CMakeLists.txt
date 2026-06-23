@@ -22,7 +22,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/builtins/game.cpp
     src/core/dev_features.cpp
     src/sdk/natives/ue4_impl.cpp
-    src/core/ue4_reflection.cpp
+    src/sdk/reflection/ue4_reflection.cpp
     src/core/teleport.cpp
     src/core/playground.cpp
     src/core/appearance_dump.cpp
