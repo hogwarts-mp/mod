@@ -19,7 +19,7 @@
 #include "appearance_dump.h"
 
 #include "application.h"
-#include "ue4_natives.h"
+#include "sdk/natives/ue4_natives.h"
 #include "ue4_reflection.h"
 
 #include <logging/logger.h>

@@ -4,7 +4,7 @@
 #include "application.h"
 #include "aob_scan.h"
 #include "student_proxy.h"
-#include "ue4_natives.h"
+#include "sdk/natives/ue4_natives.h"
 #include "ue4_reflection.h"
 
 #include <utils/safe_win32.h>

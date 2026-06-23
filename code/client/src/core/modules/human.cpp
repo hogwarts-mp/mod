@@ -4,7 +4,7 @@
 
 #include "core/application.h"
 #include "core/student_proxy.h"
-#include "core/ue4_natives.h"
+#include "sdk/natives/ue4_natives.h"
 #include "core/ue4_reflection.h"
 
 #include <core_modules.h>

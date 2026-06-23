@@ -41,7 +41,7 @@
 #include "kit_params_female_uni03.h"
 #include "kit_params_houses.h"
 #include "kit_params_male_uni03.h"
-#include "ue4_natives.h"
+#include "sdk/natives/ue4_natives.h"
 #include "ue4_reflection.h"
 
 #include <logging/logger.h>
