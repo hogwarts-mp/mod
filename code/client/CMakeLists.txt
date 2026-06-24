@@ -48,9 +48,9 @@ set(HOGWARTSMP_SDK_FILES
 
 add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} ${HOGWARTSMP_SDK_FILES})
 target_include_directories(HogwartsMPClient PRIVATE src
-    ${UE4_SOURCE_DIR}/Runtime/Core/Public
-    ${UE4_SOURCE_DIR}/Runtime/CoreUObject/Public
-    ${UE4_SOURCE_DIR}/Runtime/TraceLog/Public
+    ${UE4_SOURCE_DIR}/ue/Core/Public
+    ${UE4_SOURCE_DIR}/ue/CoreUObject/Public
+    ${UE4_SOURCE_DIR}/ue/TraceLog/Public
 )
 
 target_link_libraries(HogwartsMPClient Framework FrameworkClient shlwapi lua54_static)
