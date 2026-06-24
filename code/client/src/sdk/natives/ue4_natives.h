@@ -16,7 +16,7 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/UnrealType.h"
 
-#include "sdk/Headers/FActorSpawnParameters.h"
+#include "sdk/offsets/Headers/FActorSpawnParameters.h"
 
 class UWorld;
 

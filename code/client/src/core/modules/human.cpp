@@ -12,7 +12,7 @@
 #include <networking/replication/entity_registry.h>
 #include <networking/replication/replication_manager.h>
 
-#include <sdk/entities/uplayer.h>
+#include <sdk/offsets/entities/uplayer.h>
 
 #include <cmath>
 

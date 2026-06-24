@@ -39,11 +39,11 @@ set(HOGWARTSMP_CLIENT_FILES
 )
 
 set(HOGWARTSMP_SDK_FILES
-    src/sdk/containers/fname.cpp
-    src/sdk/containers/tuobjectarray.cpp
-    src/sdk/entities/acharacter.cpp
-    src/sdk/types/uobject.cpp
-    src/sdk/game/seasonchanger.cpp
+    src/sdk/offsets/containers/fname.cpp
+    src/sdk/offsets/containers/tuobjectarray.cpp
+    src/sdk/offsets/entities/acharacter.cpp
+    src/sdk/offsets/types/uobject.cpp
+    src/sdk/offsets/game/seasonchanger.cpp
 )
 
 add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} ${HOGWARTSMP_SDK_FILES})

@@ -27,7 +27,7 @@
 #include "shared/rpc/set_weather.h"
 #include "shared/version.h"
 
-#include "../sdk/game/ulevel.h"
+#include "../sdk/offsets/game/ulevel.h"
 
 #include "game_layout.h"
 #include <cstddef>
