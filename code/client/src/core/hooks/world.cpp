@@ -8,7 +8,7 @@
 
 #include "../application.h"
 #include "../aob_scan.h"
-#include "../../sdk/Headers/FActorSpawnParameters.h"
+#include "../../sdk/offsets/Headers/FActorSpawnParameters.h"
 
 class FObjectInitializer;
 typedef void *(__fastcall *UWorld__UWorld_t)(void *, const FObjectInitializer &);

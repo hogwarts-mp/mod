@@ -19,10 +19,10 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/UnrealType.h"
 
-#include "sdk/entities/ulocalplayer.h"
-#include "sdk/entities/a_biped_player.h"
-#include "sdk/game/ugameinstance.h"
-#include "sdk/game/uworld.h"
+#include "sdk/offsets/entities/ulocalplayer.h"
+#include "sdk/offsets/entities/a_biped_player.h"
+#include "sdk/offsets/game/ugameinstance.h"
+#include "sdk/offsets/game/uworld.h"
 
 namespace HogwartsMP::Core {
     class Application : public Framework::Integrations::Client::Instance {

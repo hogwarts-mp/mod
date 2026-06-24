@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sdk/game/seasonchanger.h>
+#include <sdk/offsets/game/seasonchanger.h>
 
 namespace HogwartsMP::Core::UI {
     class SeasonManager final {

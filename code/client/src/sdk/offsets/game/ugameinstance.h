@@ -4,7 +4,7 @@
 #include "../containers/tarray.h"
 #include "../types/uobject.h"
 
-#include "../../core/game_layout.h"
+#include "core/game_layout.h"
 
 namespace SDK {
     class UGameInstance: public UObject {
