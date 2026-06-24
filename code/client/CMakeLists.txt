@@ -21,7 +21,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/application.cpp
     src/core/builtins/game.cpp
     src/core/dev_features.cpp
-    src/core/ue4_impl.cpp
+    src/sdk/natives/ue4_impl.cpp
     src/core/ue4_reflection.cpp
     src/core/teleport.cpp
     src/core/playground.cpp
@@ -46,7 +46,7 @@ set(HOGWARTSMP_SDK_FILES
     src/sdk/game/seasonchanger.cpp
 )
 
-add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} ${HOGWARTSMP_SDK_FILES} "src/core/ue4_impl.cpp")
+add_library(HogwartsMPClient SHARED ${HOGWARTSMP_CLIENT_FILES} ${HOGWARTSMP_SDK_FILES})
 target_include_directories(HogwartsMPClient PRIVATE src
     ${UE4_SOURCE_DIR}/Runtime/Core/Public
     ${UE4_SOURCE_DIR}/Runtime/CoreUObject/Public

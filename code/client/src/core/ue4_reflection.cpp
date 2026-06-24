@@ -7,7 +7,7 @@
 // Keep the sdk-heavy headers after the framework ones — the reversed UE
 // headers tighten the MSVC warning state (4582 et al. become errors) in a way
 // that breaks fmt's templates if they come first.
-#include "ue4_natives.h"
+#include "sdk/natives/ue4_natives.h"
 #include "ue4_reflection.h"
 
 #include <string>

@@ -3,7 +3,7 @@
 #include "UObject/Class.h"
 #include <utils/hooking/hook_function.h>
 #include <utils/hooking/hooking_patterns.h>
-#include "aob_scan.h"
+#include "core/aob_scan.h"
 
 typedef void (__fastcall *FName__ToString_t)(const FName *, FString &);
 FName__ToString_t FName__ToString = nullptr;
