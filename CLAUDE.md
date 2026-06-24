@@ -36,11 +36,11 @@ code/
 │   │   └── dev_features.cpp  # Debug tools and UI
 │   ├── game/
 │   │   └── game_input.h/cpp  # Keyboard input mapping
-│   └── sdk/                  # Reversed Unreal Engine 4 structures
-│       ├── entities/         # ABiped_Player, ABiped_Character, APlayerController
-│       ├── components/       # UE4 component types
-│       ├── containers/       # TArray, TMap, FString, etc.
-│       └── game/             # SeasonChanger, UScheduler
+│   └── sdk/                  # Game-interface layer (see sdk/README.md)
+│       ├── ue/               # Vendored Epic UE source (foundation, don't edit)
+│       ├── natives/          # Sigscan glue: native fn pointers + linker stubs
+│       ├── reflection/       # PRIMARY accessor: drive game via UE reflection
+│       └── offsets/          # LEGACY accessor: hand-RE'd SDK:: offset structs
 │
 ├── server/src/
 │   ├── main.cpp
@@ -79,15 +79,18 @@ code/
 
 ### SDK Structure (client/src/sdk/)
 
-Reversed Unreal Engine 4 types. Key classes:
+The game-interface layer, split into four sub-layers (full details in
+[sdk/README.md](code/client/src/sdk/README.md)):
 
-- `UObject` - Base for all Unreal objects
-- `UWorld` - Game world with persistent level
-- `ABiped_Player` - Player character with components
-- `APlayerController` - Input controller
-- `ULocalPlayer` - Local player with viewport
-- `SeasonChanger` - Weather/time system
-- `UScheduler` - Game scheduler/timing
+- `ue/` - Vendored Epic UE source headers; the foundation. Never hand-edit.
+- `natives/` - Sigscanned native function pointers + the linker glue
+  (`ue4_impl.cpp`) that lets `ue/` compile.
+- `reflection/` - **Primary** accessor. Read/write properties and call
+  `UFunction`s by name via the engine's own reflection (`CallUFunction`, ...).
+  Survives game patches — use this for anything new.
+- `offsets/` - **Legacy** accessor. Hand-RE'd `SDK::` struct mirrors with fixed
+  `pad[0x..]` offsets (`ABiped_Player`, `UWorld`, `SeasonChanger`, ...). Still
+  used in places, but offsets go stale per build — don't grow it.
 
 ### Entity Synchronization
 
