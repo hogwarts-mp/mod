@@ -1,6 +1,6 @@
 #include <utils/safe_win32.h>
 
-#include "aob_scan.h"
+#include "core/aob_scan.h"
 
 #include <logging/logger.h>
 
@@ -8,7 +8,7 @@
 // headers tighten the MSVC warning state (4582 et al. become errors) in a way
 // that breaks fmt's templates if they come first.
 #include "sdk/natives/ue4_natives.h"
-#include "ue4_reflection.h"
+#include "sdk/reflection/ue4_reflection.h"
 
 #include <string>
 #include <unordered_map>

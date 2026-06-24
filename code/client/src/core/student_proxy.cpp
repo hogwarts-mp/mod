@@ -24,7 +24,7 @@
 //      Biped_ClothJoints skeletons).
 //
 // Implementation notes: everything goes through the shared reflection
-// plumbing in core/ue4_reflection.h (ProcessEvent by function-name-in-chain,
+// plumbing in sdk/reflection/ue4_reflection.h (ProcessEvent by function-name-in-chain,
 // FProperty offsets), with exactly one extra native sigscan (StaticLoadObject
 // — load assets by path with no NPCs around).
 //
@@ -42,7 +42,7 @@
 #include "kit_params_houses.h"
 #include "kit_params_male_uni03.h"
 #include "sdk/natives/ue4_natives.h"
-#include "ue4_reflection.h"
+#include "sdk/reflection/ue4_reflection.h"
 
 #include <logging/logger.h>
 

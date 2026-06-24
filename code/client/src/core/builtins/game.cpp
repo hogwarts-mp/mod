@@ -2,7 +2,7 @@
 
 #include "core/application.h"
 #include "core/teleport.h"
-#include "core/ue4_reflection.h"
+#include "sdk/reflection/ue4_reflection.h"
 
 #include <integrations/shared/rpc/emit_lua_event.h>
 
