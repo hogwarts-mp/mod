@@ -6,6 +6,7 @@
 #include "core/server.h"
 
 #include "shared/game/human.h"
+#include "shared/rpc/set_appearance.h"
 
 #include <core_modules.h>
 #include <integrations/shared/rpc/emit_lua_event.h>
@@ -171,6 +172,28 @@ namespace HogwartsMP::Scripting {
         }
     }
 
+    // Copy another human's worn CCD onto this one (sanitized) and broadcast it — used by the /mirrornpcs dev
+    // command to clone a player's look onto NPCs. Rides future construction snapshots; AppearanceUpdate
+    // dresses peers already streaming this entity.
+    void Human::MirrorAppearanceFrom(double sourceNetworkId) {
+        auto *target = ResolveHuman(GetId());
+        auto *source = ResolveHuman(static_cast<uint64_t>(sourceNetworkId));
+        if (!target || !source) {
+            return;
+        }
+        auto ccd = source->ccd;
+        Shared::Modules::SanitizeCcd(ccd);
+        target->ccd = ccd;
+        auto *peer  = Framework::CoreModules::GetNetworkPeer();
+        if (!peer) {
+            return;
+        }
+        Shared::RPC::AppearanceUpdate upd;
+        upd.networkId = target->GetNetworkID();
+        upd.ccd       = std::move(ccd);
+        peer->BroadcastRPC(upd);
+    }
+
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
         auto it = _classes.find(isolate);
         if (it != _classes.end()) {
@@ -191,7 +214,8 @@ namespace HogwartsMP::Scripting {
             .function("setData", &Human::SetData)
             .function("hasData", &Human::HasData)
             .function("deleteData", &Human::DeleteData)
-            .function("destroy", &Human::Destroy);
+            .function("destroy", &Human::Destroy)
+            .function("mirrorAppearanceFrom", &Human::MirrorAppearanceFrom);
 
         auto protoTemplate = cls->class_function_template()->PrototypeTemplate();
 
