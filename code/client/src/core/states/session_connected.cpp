@@ -33,17 +33,19 @@ namespace HogwartsMP::Core::States {
     }
 
     bool SessionConnectedState::OnExit(Framework::Utils::States::Machine *) {
+        gApplication->GetChat()->Hide();
         return true;
     }
 
     bool SessionConnectedState::OnUpdate(Framework::Utils::States::Machine *) {
+        // Web-backed chat runs on the game thread, NOT inside an ImGui widget — key
+        // edges set by the CEF message pump are cleared before deferred widgets run.
+        if (!gApplication->GetDevConsole()->IsOpen()) {
+            gApplication->GetChat()->Update();
+        }
+
         gApplication->GetImGUI()->PushWidget([]() {
             using namespace Framework::External::ImGUI::Widgets;
-
-            if (!gApplication->GetDevConsole()->IsOpen()) {
-                gApplication->GetChat()->Update();
-            }
-
             DrawCornerText(CORNER_RIGHT_TOP, "YOU ARE CONNECTED");
             DrawCornerText(CORNER_RIGHT_TOP, "Press F9 to disconnect");
         });
