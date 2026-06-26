@@ -34,6 +34,7 @@
 
 #include "game_layout.h"
 #include <cstddef>
+#include <filesystem>
 
 namespace HogwartsMP::Core {
     // Compile-time guard: the SDK struct layouts (sdk/**) and the central offset
@@ -139,7 +140,55 @@ namespace HogwartsMP::Core {
         return SafeGrabLocalPlayer(gGlobals.world).biped;
     }
 
+    namespace {
+        // Directory of HogwartsMPClient.dll (not the game exe) — CEF cache/logs
+        // and cef_subprocess.exe live next to our binaries, not in the game dir.
+        static std::string GetClientModuleDir() {
+            static const int s_anchor = 0;
+            HMODULE selfModule        = nullptr;
+            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&s_anchor), &selfModule);
+            wchar_t path[MAX_PATH] = {};
+            GetModuleFileNameW(selfModule, path, MAX_PATH);
+            return std::filesystem::path(path).parent_path().string();
+        }
+    } // namespace
+
     void Application::PostUpdate() {
+        // Bring up CEF once the renderer is live (game thread: CefInitialize binds
+        // its pump to the calling thread). One attempt only — can't re-init CEF.
+        const auto webManager = GetWebManager();
+        if (webManager && !webManager->IsInitialized() && GetRenderer() && GetRenderer()->IsInitialized() && gGlobals.window) {
+            static bool s_webInitAttempted = false;
+            if (!s_webInitAttempted) {
+                s_webInitAttempted = true;
+
+                // Diagnostic kill-switch: drop a "disable_web" file next to the
+                // client DLL to skip CEF entirely.
+                if (std::filesystem::exists(std::filesystem::path(GetClientModuleDir()) / "disable_web")) {
+                    Framework::Logging::GetLogger("Web")->info("disable_web flag present, skipping web manager init");
+                }
+                else {
+                    RECT rc {};
+                    GetClientRect(gGlobals.window, &rc);
+                    Framework::GUI::ViewportConfiguration viewport {static_cast<int>(rc.right - rc.left), static_cast<int>(rc.bottom - rc.top)};
+                    if (!webManager->Init(GetClientModuleDir(), viewport, GetRenderer())) {
+                        Framework::Logging::GetLogger("Web")->error("Web manager initialization failed, web UI disabled");
+                    }
+                    else {
+                        Framework::Logging::GetLogger("Web")->info("Web manager initialized ({}x{})", viewport.width, viewport.height);
+                    }
+                }
+            }
+        }
+
+        // Blit web views through the ImGui frame. Pushed before the local-player
+        // early-returns below so web UI also renders in the main menu.
+        if (webManager && webManager->IsInitialized()) {
+            GetImGUI()->PushWidget([webManager]() {
+                webManager->SubmitImGuiDraws();
+            });
+        }
+
         if (_stateMachine) {
             _stateMachine->Update();
         }

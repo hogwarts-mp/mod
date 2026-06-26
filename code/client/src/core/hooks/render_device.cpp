@@ -13,6 +13,16 @@
 
 #include <imgui.h>
 
+#include <mutex>
+#include <string>
+
+// Resolve a code address to "module.dll+0xoffset" (defined below)
+static std::string ModuleForAddress(void* addr);
+
+// Serializes the Present hook against ResizeBuffers (different threads → a
+// mid-resize Present could use-after-free the back buffer).
+static std::mutex g_renderResizeMutex;
+
 class FD3D12Adapter {
   public:
     char pad0[0x18];
@@ -41,7 +51,36 @@ FEngineLoop__BeginFrameRenderThread_t FEngineLoop__BeginFrameRenderThread_origin
 void FWindowsApplication__ProcessMessage_Hook(void* pThis, HWND hwnd, uint32_t msg, WPARAM wParam, LPARAM lParam) {
     const auto app = HogwartsMP::Core::gApplication.get();
     if (app && app->IsInitialized()) {
+        // Tear CEF down while the window's message pump is still alive — left to
+        // process teardown its threads stall game exit ~4.5 min. WM_DESTROY (not
+        // WM_CLOSE) is what actually fires here.
+        if ((msg == WM_CLOSE || msg == WM_DESTROY) && hwnd == HogwartsMP::Core::gGlobals.window) {
+            const auto webManager = app->GetWebManager();
+            if (webManager && webManager->IsInitialized()) {
+                webManager->Shutdown();
+            }
+        }
+
         app->GetInput()->ProcessEvent(hwnd, msg, wParam, lParam);
+
+        const bool isKeyboardMsg = msg >= WM_KEYFIRST && msg <= WM_KEYLAST;
+        const bool isMouseMsg    = msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST;
+        if (isKeyboardMsg || isMouseMsg) {
+            const auto webManager = app->GetWebManager();
+            if (webManager && webManager->IsInitialized()) {
+                if (isMouseMsg) {
+                    webManager->ProcessMouseEvent(hwnd, msg, wParam, lParam);
+                }
+                else {
+                    webManager->ProcessKeyboardEvent(hwnd, msg, wParam, lParam);
+                }
+
+                // A focused web view consumes the input — swallow it from the game.
+                if (webManager->IsAnyViewFocused()) {
+                    return;
+                }
+            }
+        }
 
         if (app->AreControlsLocked() && app->GetImGUI()->ProcessEvent(hwnd, msg, wParam, lParam) == Framework::External::ImGUI::InputState::BLOCK) {
             return;
@@ -100,16 +139,58 @@ long __fastcall IDXGISwapChain3__Present_Hook(IDXGISwapChain3* pSwapChain, UINT 
             io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
         }
     } else {
-        renderer->GetD3D12Backend()->Begin();
+        std::lock_guard<std::mutex> lock(g_renderResizeMutex);
+
+        auto* backend = renderer->GetD3D12Backend();
+
+        // Swapchain can be replaced wholesale (fullscreen/mode change); just point
+        // at the current one (Begin() re-acquires the back buffer each frame).
+        if (pSwapChain != backend->GetSwapChain()) {
+            backend->SetSwapChain(pSwapChain);
+
+            // Keep the CEF viewport matched to the (possibly new) client size
+            const auto webManager = app->GetWebManager();
+            if (webManager && webManager->IsInitialized()) {
+                DXGI_SWAP_CHAIN_DESC desc {};
+                if (SUCCEEDED(pSwapChain->GetDesc(&desc))) {
+                    webManager->Resize(static_cast<int>(desc.BufferDesc.Width), static_cast<int>(desc.BufferDesc.Height));
+                }
+            }
+        }
+
+        backend->Begin();
+        // Upload web-view textures before the ImGui draw that samples them.
+        app->GetWebManager()->Render();
         app->GetImGUI()->Render();
-        renderer->GetD3D12Backend()->End();
+        backend->End();
     }
 
     return IDXGISwapChain3__Present_original(pSwapChain, SyncInterval, Flags);
 }
 
 long __fastcall IDXGISwapChain3__ResizeBuffers_Hook(IDXGISwapChain3* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) {
-    return IDXGISwapChain3__ResizeBuffers_orignal(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+    auto* app = HogwartsMP::Core::gApplication.get();
+
+    long hr;
+    {
+        // Hold the lock only across the resize so no Present frame is mid-render
+        // while the game resizes (we cache nothing; the game owns the resize).
+        std::lock_guard<std::mutex> lock(g_renderResizeMutex);
+        hr = IDXGISwapChain3__ResizeBuffers_orignal(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+    }
+
+    // Match the CEF viewport to the new client size (outside the lock)
+    if (SUCCEEDED(hr) && app) {
+        const auto webManager = app->GetWebManager();
+        if (webManager && webManager->IsInitialized()) {
+            DXGI_SWAP_CHAIN_DESC desc {};
+            if (SUCCEEDED(pSwapChain->GetDesc(&desc))) {
+                webManager->Resize(static_cast<int>(desc.BufferDesc.Width), static_cast<int>(desc.BufferDesc.Height));
+            }
+        }
+    }
+
+    return hr;
 }
 
 void __fastcall ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue* queue, UINT NumCommandLists, ID3D12CommandList* ppCommandLists) {
@@ -120,6 +201,24 @@ void __fastcall ID3D12CommandQueue__ExecuteCommandLists_Hook(ID3D12CommandQueue*
     }
 
     ID3D12CommandQueue__ExecuteCommandLists_original(queue, NumCommandLists, ppCommandLists);
+}
+
+// "module.dll+0xoffset" for a code address — tells real dxgi.dll from a proxy
+// (e.g. NVIDIA Streamline's sl.interposer.dll).
+static std::string ModuleForAddress(void* addr) {
+    HMODULE mod = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(addr), &mod) || !mod) {
+        return "<unknown>";
+    }
+    wchar_t path[MAX_PATH] = {};
+    GetModuleFileNameW(mod, path, MAX_PATH);
+    std::wstring wp(path);
+    const auto slash = wp.find_last_of(L"\\/");
+    const std::wstring base = (slash == std::wstring::npos) ? wp : wp.substr(slash + 1);
+    char nameBuf[MAX_PATH] = {};
+    WideCharToMultiByte(CP_UTF8, 0, base.c_str(), -1, nameBuf, sizeof(nameBuf), nullptr, nullptr);
+    const auto off = reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(mod);
+    return fmt::format("{}+0x{:x}", nameBuf, off);
 }
 
 void HookDX12_Functions() {
@@ -142,6 +241,12 @@ void HookDX12_Functions() {
         pointers.ID3D12CommandQueue__ExecuteCommandLists,
         pointers.IDXGISwapChain3__Present,
         pointers.IDXGISwapChain3__ResizeBuffers
+    );
+    // Which module owns each hooked function? (real DXGI vs Streamline proxy)
+    Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->warn("DX12 hook modules -> ExecuteCommandLists: {} | Present: {} | ResizeBuffers: {}",
+        ModuleForAddress(pointers.ID3D12CommandQueue__ExecuteCommandLists),
+        ModuleForAddress(pointers.IDXGISwapChain3__Present),
+        ModuleForAddress(pointers.IDXGISwapChain3__ResizeBuffers)
     );
 
     MH_CreateHook((LPVOID)pointers.IDXGISwapChain3__Present, (PBYTE)IDXGISwapChain3__Present_Hook, reinterpret_cast<void **>(&IDXGISwapChain3__Present_original));
