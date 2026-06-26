@@ -22,8 +22,13 @@
 #include "sdk/natives/ue4_natives.h"
 #include "sdk/reflection/ue4_reflection.h"
 
+#include "UObject/Class.h"
+#include "UObject/UObjectArray.h"
+#include "UObject/UnrealType.h"
+
 #include <logging/logger.h>
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
@@ -392,6 +397,122 @@ namespace {
 } // namespace
 
 namespace HogwartsMP::Core::AppearanceDump {
+    bool BuildLocalCcd(Shared::Modules::CcdProfile &out) {
+        using namespace HogwartsMP::Core::UE4;
+        auto *lp = HogwartsMP::Core::gGlobals.localPlayer;
+        if (!lp || !lp->PlayerController || !lp->PlayerController->Pawn) {
+            return false;
+        }
+        auto *pawn = reinterpret_cast<UObjectBase *>(lp->PlayerController->Pawn);
+        auto *arr  = HogwartsMP::Core::gGlobals.objectArray;
+        if (!arr) {
+            return false;
+        }
+        const int total  = arr->GetObjectArrayNum();
+        UObjectBase *ccc = nullptr;
+        for (int i = 0; i < total && !ccc; ++i) {
+            auto *it = arr->IndexToObject(i);
+            if (it && it->Object && narrow(it->Object->GetClass()->GetFName()) == "CustomizableCharacterComponent" && it->Object->GetOuter() == pawn) {
+                ccc = it->Object;
+            }
+        }
+        auto *ccd = ccc ? ReadObjectProperty(ccc, "CacheCCD") : nullptr;
+        if (!ccd) {
+            return false;
+        }
+        auto *ccdCls = reinterpret_cast<UClass *>(ccd->GetClass());
+        out          = {};
+        if (int g = ReadByteProperty(ccd, "Gender"); g >= 0) {
+            out.gender = static_cast<uint8_t>(g);
+        }
+        if (auto *sp = FindPropertyInChain(ccdCls, "Scale"); sp && narrow(sp->GetClass()->GetFName()) == "FloatProperty") {
+            out.scale = *reinterpret_cast<float *>(reinterpret_cast<uint8_t *>(ccd) + sp->GetOffset_ForInternal());
+        }
+
+        // Fill a CcdPiece from a CharacterPieceDefinition struct value at pbase.
+        auto readPiece = [&](uint8_t *pbase, UStruct *ps, Shared::Modules::CcdPiece &dst) {
+            auto *cls = reinterpret_cast<UClass *>(ps);
+            if (auto *cpP = FindPropertyInChain(cls, "CharacterPiece")) {
+                if (auto *o = *reinterpret_cast<UObjectBase **>(pbase + cpP->GetOffset_ForInternal())) {
+                    dst.characterPiece = AssetPath(o);
+                }
+            }
+            auto readBool = [&](const char *n) -> bool {
+                auto *p = FindPropertyInChain(cls, n);
+                if (!p) {
+                    return false;
+                }
+                auto *bp = static_cast<FBoolProperty *>(p);
+                return (*(pbase + bp->GetOffset_ForInternal() + bp->ByteOffset) & bp->ByteMask) != 0;
+            };
+            dst.setEvenIfNone = readBool("bSetCharacterPieceEvenIfNone");
+            dst.isFlipped     = readBool("bIsFlipped");
+            auto readMap = [&](const char *n, auto fn) {
+                auto *p = FindPropertyInChain(cls, n);
+                if (!p || narrow(p->GetClass()->GetFName()) != "MapProperty") {
+                    return;
+                }
+                auto *mp = static_cast<FMapProperty *>(p);
+                FScriptMapHelper h(mp, pbase + p->GetOffset_ForInternal());
+                for (int i = 0; i < h.GetMaxIndex(); ++i) {
+                    if (h.IsValidIndex(i)) {
+                        fn(narrow(*reinterpret_cast<FName *>(h.GetKeyPtr(i))), h.GetValuePtr(i));
+                    }
+                }
+            };
+            readMap("ScalarOverrides", [&](const std::string &k, uint8_t *v) { dst.scalars.emplace_back(k, *reinterpret_cast<float *>(v)); });
+            readMap("VectorOverrides", [&](const std::string &k, uint8_t *v) { auto *c = reinterpret_cast<float *>(v); dst.vectors.push_back({k, {c[0], c[1], c[2], c[3]}}); });
+            readMap("TextureOverrides", [&](const std::string &k, uint8_t *v) { auto *o = *reinterpret_cast<UObjectBase **>(v); dst.textures.push_back({k, o ? AssetPath(o) : std::string()}); });
+        };
+
+        // Read a map<Name, CharacterPieceDefinition> at mapBase into a CcdPieceMap.
+        auto readPieceMap = [&](uint8_t *mapBase, FMapProperty *mp, Shared::Modules::CcdPieceMap &dst) {
+            auto *vStr = (narrow(mp->ValueProp->GetClass()->GetFName()) == "StructProperty") ? static_cast<FStructProperty *>(mp->ValueProp)->Struct : nullptr;
+            if (!vStr) {
+                return;
+            }
+            FScriptMapHelper h(mp, mapBase);
+            for (int i = 0; i < h.GetMaxIndex(); ++i) {
+                if (!h.IsValidIndex(i)) {
+                    continue;
+                }
+                Shared::Modules::CcdPiece piece;
+                readPiece(h.GetValuePtr(i), reinterpret_cast<UStruct *>(vStr), piece);
+                dst.emplace_back(narrow(*reinterpret_cast<FName *>(h.GetKeyPtr(i))), std::move(piece));
+            }
+        };
+
+        if (auto *p = FindPropertyInChain(ccdCls, "BoneScaleValues"); p && narrow(p->GetClass()->GetFName()) == "MapProperty") {
+            FScriptMapHelper h(static_cast<FMapProperty *>(p), reinterpret_cast<uint8_t *>(ccd) + p->GetOffset_ForInternal());
+            for (int i = 0; i < h.GetMaxIndex(); ++i) {
+                if (h.IsValidIndex(i)) {
+                    out.boneScales.emplace_back(narrow(*reinterpret_cast<FName *>(h.GetKeyPtr(i))), *reinterpret_cast<float *>(h.GetValuePtr(i)));
+                }
+            }
+        }
+        if (auto *p = FindPropertyInChain(ccdCls, "CharacterItems"); p && narrow(p->GetClass()->GetFName()) == "MapProperty") {
+            readPieceMap(reinterpret_cast<uint8_t *>(ccd) + p->GetOffset_ForInternal(), static_cast<FMapProperty *>(p), out.characterItems);
+        }
+        if (auto *p = FindPropertyInChain(ccdCls, "Outfits"); p && narrow(p->GetClass()->GetFName()) == "MapProperty") {
+            auto *mp   = static_cast<FMapProperty *>(p);
+            auto *oStr = (narrow(mp->ValueProp->GetClass()->GetFName()) == "StructProperty") ? static_cast<FStructProperty *>(mp->ValueProp)->Struct : nullptr;
+            FScriptMapHelper h(mp, reinterpret_cast<uint8_t *>(ccd) + p->GetOffset_ForInternal());
+            for (int i = 0; i < h.GetMaxIndex(); ++i) {
+                if (!h.IsValidIndex(i)) {
+                    continue;
+                }
+                Shared::Modules::CcdPieceMap items;
+                if (oStr) {
+                    if (auto *oiP = FindPropertyInChain(reinterpret_cast<UClass *>(oStr), "OutfitItems"); oiP && narrow(oiP->GetClass()->GetFName()) == "MapProperty") {
+                        readPieceMap(h.GetValuePtr(i) + oiP->GetOffset_ForInternal(), static_cast<FMapProperty *>(oiP), items);
+                    }
+                }
+                out.outfits.emplace_back(narrow(*reinterpret_cast<FName *>(h.GetKeyPtr(i))), std::move(items));
+            }
+        }
+        return true;
+    }
+
     void RequestDump() {
         g_dumpPending = true;
     }
@@ -399,6 +520,15 @@ namespace HogwartsMP::Core::AppearanceDump {
     void ProcessPending() {
         if (g_dumpPending.exchange(false)) {
             DumpNearbyNow();
+            // Verify the local-CCD read (commit 5 wires the actual send).
+            Shared::Modules::CcdProfile prof;
+            if (BuildLocalCcd(prof)) {
+                Framework::Logging::GetLogger("CCD")->info("BuildLocalCcd: gender={} scale={:.3f} bones={} items={} outfits={}",
+                                                           static_cast<int>(prof.gender), prof.scale, prof.boneScales.size(), prof.characterItems.size(), prof.outfits.size());
+            }
+            else {
+                Framework::Logging::GetLogger("CCD")->warn("BuildLocalCcd failed (no local pawn/CCC/CCD)");
+            }
         }
     }
 } // namespace HogwartsMP::Core::AppearanceDump
