@@ -51,6 +51,10 @@ namespace HogwartsMP::Game {
         Aob staticLoadObject;      // UObject*(UClass*, UObject* outer, const TCHAR* name, ...) — load asset by path
         Aob engineTick;            // engine main-tick (call site)
 
+        // --- Pak mounting (inject our Paks folder into UE's startup scan; hooks/pak_mount.cpp) ---
+        Aob getPakFolders;  // FPakPlatformFile::GetPakFolders(self, TArray<FString>* out)
+        Aob fmemoryRealloc; // void*(void* ptr, size_t size, uint32 alignment) — grow the folder array
+
         // --- Rendering (window + device for the ImGui overlay) ---
         Aob fwindowsWindowInitialize;  // FWindowsWindow::Initialize
         Aob fwindowsAppProcessMessage; // FWindowsApplication::ProcessMessage (call site) — ImGui input
@@ -93,6 +97,10 @@ namespace HogwartsMP::Game {
         {"Core/StaticLoadObject", "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 88 FC FF FF 48 81 EC 78 04 00 00 48 8B 05", false}, // verified: assets load
         {"Engine/EngineTick", "E8 ? ? ? ? 80 3D ? ? ? ? ? 74 EB", false}, // verified: tick runs
 
+        // Pak mounting (stock engine fns — inject <exeDir>\Paks into UE's startup scan)
+        {"Pak/FPakPlatformFile::GetPakFolders", "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 4C 89 74 24 20 55 48 8B EC 48 83 EC 40 48 8D 4D F0", false},
+        {"Pak/FMemory::Realloc", "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B F1 41 8B D8 48 8B 0D ? ? ? ? 48 8B FA", false},
+
         // Rendering — !! both render hooks below are STALE (match the WRONG
         // function; their handlers never fire). The overlay is brought up by the
         // EngineTick DX12 bootstrap instead (render_device.cpp). TODO re-derive.
@@ -131,6 +139,10 @@ namespace HogwartsMP::Game {
         // current-build one (not independently verified for this older build).
         {"Core/StaticLoadObject", "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 88 FC FF FF 48 81 EC 78 04 00 00 48 8B 05", false},
         {"Engine/EngineTick", "E8 ? ? ? ? 80 3D ? ? ? ? ? 74 EB", false},
+
+        // Pak mounting (stock engine fns — same patterns as the current build)
+        {"Pak/FPakPlatformFile::GetPakFolders", "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 4C 89 74 24 20 55 48 8B EC 48 83 EC 40 48 8D 4D F0", false},
+        {"Pak/FMemory::Realloc", "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B F1 41 8B D8 48 8B 0D ? ? ? ? 48 8B FA", false},
 
         {"Render/FWindowsWindow::Initialize", "4C 8B DC 53 55 56 41 54 41 55 41 56", false},
         {"Render/FWindowsApplication::ProcessMessage", "E8 ? ? ? ? 48 8B 5C 24 ? 48 8B 6C 24 ? 48 8B 74 24 ? 48 98", false},
