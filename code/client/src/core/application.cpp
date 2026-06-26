@@ -20,10 +20,13 @@
 #include "modules/human.h"
 
 #include "builtins/game.h"
+#include <core_modules.h>
+#include <networking/replication/replication_manager.h>
 #include <scripting/engine.h>
 
 #include "external/imgui/widgets/corner_text.h"
 
+#include "shared/rpc/set_appearance.h"
 #include "shared/rpc/set_weather.h"
 #include "shared/version.h"
 
@@ -273,6 +276,19 @@ namespace HogwartsMP::Core {
         net->RegisterRPC<Shared::RPC::SetWeather>([this](const Shared::RPC::SetWeather &msg, MafiaNet::Packet *) {
             // TODO: apply the environment state to the game (season/time/weather).
             Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Sync Weather! ({}, season {})", msg.data.weather, msg.data.season);
+        });
+
+        // Live appearance change; store on the replica (commit 6 applies it).
+        net->RegisterRPC<Shared::RPC::AppearanceUpdate>([](const Shared::RPC::AppearanceUpdate &msg, MafiaNet::Packet *) {
+            auto *repl  = Framework::CoreModules::GetReplication();
+            auto *human = repl ? repl->GetEntity<Core::Modules::ClientHuman>(msg.networkId) : nullptr;
+            if (!human) {
+                return;
+            }
+            human->ccd = msg.ccd;
+            Framework::Logging::GetLogger("Human")->info("AppearanceUpdate for {}: items={} outfits={}", msg.networkId,
+                                                         static_cast<int>(msg.ccd.characterItems.size()),
+                                                         static_cast<int>(msg.ccd.outfits.size()));
         });
     }
 

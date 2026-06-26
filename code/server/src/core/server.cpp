@@ -6,6 +6,7 @@
 #include "builtins/events.h"
 
 #include "shared/game/human.h"
+#include "shared/rpc/set_appearance.h"
 
 #include <core_modules.h>
 #include <integrations/shared/rpc/emit_lua_event.h>
@@ -42,6 +43,30 @@ namespace HogwartsMP {
                 }
                 Scripting::World::EventClientEvent(sender->GetNetworkID(), name, payload.GetPayload());
             });
+
+        // Owner appearance: sanitize, store (rides the construction snapshot), re-broadcast.
+        net->RegisterRPC<Shared::RPC::SetAppearance>([this](const Shared::RPC::SetAppearance &msg, MafiaNet::Packet *packet) {
+            auto *server = GetNetworkingEngine()->GetNetworkServer();
+            auto *repl   = server ? server->GetReplicationManager() : nullptr;
+            if (!repl) {
+                return;
+            }
+            auto *human = repl->GetViewerAs<Shared::HumanEntity>(MafiaNet::ToPeerGuid(packet->guid));
+            if (!human) {
+                return;
+            }
+            auto ccd = msg.ccd;
+            Shared::Modules::SanitizeCcd(ccd);
+            human->ccd = ccd;
+
+            Shared::RPC::AppearanceUpdate upd;
+            upd.networkId = human->GetNetworkID();
+            upd.ccd       = std::move(ccd);
+            server->BroadcastRPC(upd);
+            Framework::Logging::GetLogger("Scripting")->info("Appearance from {}: items={} outfits={}", human->nickname,
+                                                             static_cast<int>(human->ccd.characterItems.size()),
+                                                             static_cast<int>(human->ccd.outfits.size()));
+        });
 
         Framework::Logging::GetLogger(FRAMEWORK_INNER_NETWORKING)->info("Networking messages registered!");
     }

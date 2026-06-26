@@ -69,75 +69,63 @@ namespace HogwartsMP::Shared::Modules {
         std::vector<std::pair<std::string, CcdPieceMap>> outfits;  // outfitName -> OutfitItems
     };
 
+    // Read/write a count-prefixed vector, capped at `cap`. Both sides clamp, so an over-cap avatar
+    // truncates cleanly and a hostile count can't blow up alloc.
+    template <typename T, typename ElemFn>
+    inline void SerializeCapped(Framework::Networking::Replication::FieldSerializer &fs, std::vector<T> &v,
+                                uint32_t cap, ElemFn elem) {
+        if (fs.Writing() && v.size() > cap) {
+            v.resize(cap);
+        }
+        uint32_t n = static_cast<uint32_t>(v.size());
+        fs.Field(n);
+        if (!fs.Writing()) {
+            v.resize(n > cap ? cap : n);
+        }
+        for (auto &e : v) {
+            elem(e);
+        }
+    }
+
     inline void SerializeCcdPiece(Framework::Networking::Replication::FieldSerializer &fs, CcdPiece &p) {
         fs.Field(p.characterPiece);
         fs.Field(p.setEvenIfNone);
         fs.Field(p.isFlipped);
-        uint32_t sc = static_cast<uint32_t>(p.scalars.size());
-        fs.Field(sc);
-        if (!fs.Writing()) {
-            p.scalars.resize(sc > kMaxCcdOverrides ? 0 : sc);
-        }
-        for (auto &s : p.scalars) {
+        SerializeCapped(fs, p.scalars, kMaxCcdOverrides, [&](auto &s) {
             fs.Field(s.first);
             fs.Field(s.second);
-        }
-        uint32_t vc = static_cast<uint32_t>(p.vectors.size());
-        fs.Field(vc);
-        if (!fs.Writing()) {
-            p.vectors.resize(vc > kMaxCcdOverrides ? 0 : vc);
-        }
-        for (auto &v : p.vectors) {
+        });
+        SerializeCapped(fs, p.vectors, kMaxCcdOverrides, [&](auto &v) {
             fs.Field(v.first);
             for (int k = 0; k < 4; ++k) {
                 fs.Field(v.second[k]);
             }
-        }
-        uint32_t tc = static_cast<uint32_t>(p.textures.size());
-        fs.Field(tc);
-        if (!fs.Writing()) {
-            p.textures.resize(tc > kMaxCcdOverrides ? 0 : tc);
-        }
-        for (auto &t : p.textures) {
+        });
+        SerializeCapped(fs, p.textures, kMaxCcdOverrides, [&](auto &t) {
             fs.Field(t.first);
             fs.Field(t.second);
-        }
+        });
     }
 
     inline void SerializeCcdPieceMap(Framework::Networking::Replication::FieldSerializer &fs, CcdPieceMap &m) {
-        uint32_t n = static_cast<uint32_t>(m.size());
-        fs.Field(n);
-        if (!fs.Writing()) {
-            m.resize(n > kMaxCcdPieces ? 0 : n);
-        }
-        for (auto &e : m) {
+        SerializeCapped(fs, m, kMaxCcdPieces, [&](auto &e) {
             fs.Field(e.first);
             SerializeCcdPiece(fs, e.second);
-        }
+        });
     }
 
     inline void SerializeCcd(Framework::Networking::Replication::FieldSerializer &fs, CcdProfile &c) {
         fs.Field(c.gender);
         fs.Field(c.scale);
-        uint32_t bc = static_cast<uint32_t>(c.boneScales.size());
-        fs.Field(bc);
-        if (!fs.Writing()) {
-            c.boneScales.resize(bc > kMaxCcdBoneScales ? 0 : bc);
-        }
-        for (auto &b : c.boneScales) {
+        SerializeCapped(fs, c.boneScales, kMaxCcdBoneScales, [&](auto &b) {
             fs.Field(b.first);
             fs.Field(b.second);
-        }
+        });
         SerializeCcdPieceMap(fs, c.characterItems);
-        uint32_t oc = static_cast<uint32_t>(c.outfits.size());
-        fs.Field(oc);
-        if (!fs.Writing()) {
-            c.outfits.resize(oc > kMaxCcdOutfits ? 0 : oc);
-        }
-        for (auto &o : c.outfits) {
+        SerializeCapped(fs, c.outfits, kMaxCcdOutfits, [&](auto &o) {
             fs.Field(o.first);
             SerializeCcdPieceMap(fs, o.second);
-        }
+        });
     }
 
     // Server-side gate: drop any DA/texture path outside the allowlist (a peer can't make others

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "shared/modules/appearance.hpp"
+
 #include <networking/replication/network_entity.h>
 
 #include <mafianet/BitStream.h>
@@ -21,10 +23,14 @@ namespace HogwartsMP::Shared {
         uint64_t spawnProfile = 0;
         // Display name, shown in chat and exposed to scripting.
         std::string nickname;
+        // Worn appearance, set server-side; rides the construction snapshot. MUST stay the trailing field
+        // (SerializeCcd's containment relies on it).
+        Modules::CcdProfile ccd;
 
         void OnSerializeConstruction(Framework::Networking::Replication::FieldSerializer &fields) override {
             fields.Field(spawnProfile);
             fields.Field(nickname);
+            Modules::SerializeCcd(fields, ccd);
         }
     };
 } // namespace HogwartsMP::Shared

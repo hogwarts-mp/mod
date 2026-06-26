@@ -2,10 +2,13 @@
 
 #include "human.h"
 
+#include "core/appearance_dump.h"
 #include "core/application.h"
 #include "core/student_proxy.h"
 #include "sdk/natives/ue4_natives.h"
 #include "sdk/reflection/ue4_reflection.h"
+
+#include "shared/rpc/set_appearance.h"
 
 #include <core_modules.h>
 #include <logging/logger.h>
@@ -34,6 +37,27 @@ namespace {
 
     int32_t ObjectIndex(AActor *actor) {
         return actor ? static_cast<int32_t>(reinterpret_cast<UObjectBase *>(actor)->GetUniqueID()) : -1;
+    }
+
+    // FNV-1a content signature of a CcdProfile — re-send only when the look actually changes.
+    uint64_t CcdSignature(const HogwartsMP::Shared::Modules::CcdProfile &c) {
+        uint64_t h    = 1469598103934665603ull;
+        auto mix      = [&](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
+        auto mixStr   = [&](const std::string &s) { for (unsigned char ch : s) { mix(ch); } mix(0xFEull); };
+        auto mixF     = [&](float f) { mix(static_cast<uint64_t>(static_cast<int64_t>(f * 100000.0f))); };
+        auto mixPiece = [&](const HogwartsMP::Shared::Modules::CcdPiece &p) {
+            mixStr(p.characterPiece);
+            for (auto &s : p.scalars) { mixStr(s.first); mixF(s.second); }
+            for (auto &v : p.vectors) { mixStr(v.first); for (float f : v.second) { mixF(f); } }
+            for (auto &t : p.textures) { mixStr(t.first); mixStr(t.second); }
+        };
+        mix(c.gender);
+        for (auto &it : c.characterItems) { mixStr(it.first); mixPiece(it.second); }
+        for (auto &o : c.outfits) {
+            mixStr(o.first);
+            for (auto &e : o.second) { mixStr(e.first); mixPiece(e.second); }
+        }
+        return h;
     }
 
     struct Vec3f {
@@ -146,6 +170,11 @@ namespace HogwartsMP::Core::Modules {
         _lastTarget    = position;
         _lastTargetRot = rotation;
         _hasTarget     = true;
+
+        // ccd arrived on the construction snapshot (commit 5 wires the transport; commit 6 applies it).
+        Framework::Logging::GetLogger("Human")->info("Remote avatar {}: ccd items={} outfits={}", nickname,
+                                                     static_cast<int>(ccd.characterItems.size()),
+                                                     static_cast<int>(ccd.outfits.size()));
     }
 
     void ClientHuman::Update(float tickInterval) {
@@ -172,6 +201,38 @@ namespace HogwartsMP::Core::Modules {
         const auto worldLoc = GetActorPos(pc->Pawn);
         position            = {worldLoc.X, worldLoc.Y, worldLoc.Z};
         rotation            = QuatFromRotator(GetActorRot(pc->Pawn));
+
+        // On a CacheCCD rebuild (pointer change — assumes HL reallocates it), harvest + send the look; the
+        // content signature suppresses redundant sends.
+        auto *cccCls = FindUClass("Class /Script/CustomizableCharacter.CustomizableCharacterComponent");
+        if (!cccCls) {
+            return;
+        }
+        struct {
+            UClass *ComponentClass;
+            UObjectBase *ReturnValue;
+        } gc{cccCls, nullptr};
+        CallUFunction(reinterpret_cast<UObjectBase *>(pc->Pawn), "GetComponentByClass", &gc);
+        auto *cache = gc.ReturnValue ? ReadObjectProperty(gc.ReturnValue, "CacheCCD") : nullptr;
+        if (!cache || cache == _lastCacheCcd) {
+            return;
+        }
+        _lastCacheCcd = cache;
+        Shared::RPC::SetAppearance payload;
+        if (!AppearanceDump::BuildLocalCcd(payload.ccd)) {
+            return;
+        }
+        const uint64_t sig = CcdSignature(payload.ccd);
+        if (sig == _apprSig) {
+            return;
+        }
+        if (auto *peer = Framework::CoreModules::GetNetworkPeer()) {
+            peer->BroadcastRPC(payload); // the client's only connection is the server
+            _apprSig = sig;
+            Framework::Logging::GetLogger("Human")->info("(re)sent appearance: items={} outfits={} sig={:x}",
+                                                         static_cast<int>(payload.ccd.characterItems.size()),
+                                                         static_cast<int>(payload.ccd.outfits.size()), sig);
+        }
     }
 
     void ClientHuman::UpdateRemote(float tickInterval) {
