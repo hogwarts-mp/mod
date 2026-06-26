@@ -7,6 +7,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/hooks/engine.cpp
     src/core/hooks/gamemode.cpp
     src/core/hooks/localplayer.cpp
+    src/core/hooks/pak_mount.cpp
     src/core/hooks/player_controller.cpp
     src/core/hooks/render_device.cpp
     src/core/hooks/world.cpp
