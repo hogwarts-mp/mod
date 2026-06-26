@@ -6,15 +6,6 @@ class AActor;
 class UObjectBase;
 
 namespace HogwartsMP::Core::StudentProxy {
-    enum class House : int { Gryffindor = 0, Slytherin = 1, Ravenclaw = 2, Hufflepuff = 3 };
-
-    // Visual identity for a proxy. Maps to SpawnStudent's per-gender outfit +
-    // per-house tint/crest overlay (see kit_params_houses.h).
-    struct Appearance {
-        bool female = false;
-        int  house  = 0; // House value; clamped to [0,3] when applied
-    };
-
     // Thread-safe request setters; the actual spawn/despawn happens on the
     // next engine tick via ProcessPending (game thread required: SpawnActor,
     // StaticLoadObject and ProcessEvent are not safe off-thread).
