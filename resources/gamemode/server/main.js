@@ -184,6 +184,18 @@ Events.on("chatCommand", (player, message, command, args) => {
             break;
         }
 
+        case "mirrornpcs": {
+            if (npcs.length === 0) {
+                player.sendChat("[DEV] No NPCs to mirror — use /spawnnpc first");
+                break;
+            }
+            // Clone your worn appearance onto each NPC: the server copies your CCD + broadcasts
+            // AppearanceUpdate, so the proxies turn into look-alikes of you.
+            for (const npc of npcs) npc.mirrorAppearanceFrom(player.id);
+            player.sendChat(`[DEV] ${npcs.length} NPC(s) mirroring your appearance`);
+            break;
+        }
+
         case "walknpcs": {
             if (npcWalkTimer) {
                 clearInterval(npcWalkTimer);

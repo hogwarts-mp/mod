@@ -70,6 +70,8 @@ interface Human extends Entity {
     deleteData(key: string): boolean;
     /** Despawn. Affects only server-owned NPCs; real players are managed by the network layer. */
     destroy(): void;
+    /** Copy another human's worn appearance (by network id) onto this one and broadcast it. */
+    mirrorAppearanceFrom(sourceId: number): void;
 }
 
 // --- Global modules ---

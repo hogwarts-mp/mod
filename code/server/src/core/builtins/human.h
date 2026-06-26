@@ -38,6 +38,9 @@ namespace HogwartsMP::Scripting {
 
         void Destroy();
 
+        // Copy another human's worn CCD onto this one and broadcast it (clone a look onto an NPC).
+        void MirrorAppearanceFrom(double sourceNetworkId);
+
         static void EventPlayerConnected(uint64_t networkId);
         static void EventPlayerDisconnected(uint64_t networkId);
         static void EventPlayerDied(uint64_t networkId);
