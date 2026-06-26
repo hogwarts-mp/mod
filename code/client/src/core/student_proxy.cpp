@@ -598,6 +598,108 @@ namespace {
         return finalize(actor);
     }
 
+    // Spawn BP_RemoteAvatarCCC from the mounted pak. Extends HL's Biped_Character (so its SCS CCC builds)
+    // and ships a baked AnimBP, so it spawns + idles with no architect/streaming-starvation delay. Appearance
+    // is layered on later; here we seed a base id to render. Mesh transform is baked into the BP.
+    AActor *SpawnCccProxy(const FVector &pos, float yawDeg, UObjectBase **outBodyMesh) {
+        if (outBodyMesh) {
+            *outBodyMesh = nullptr;
+        }
+        if (!GWorld || !*GWorld || !UWorld__SpawnActor) {
+            Log()->error("SpawnCccProxy: no world / SpawnActor not resolved");
+            return nullptr;
+        }
+
+        // Load our pak pawn class. Requires RemoteAvatar_P.pak mounted (pak_mount hook).
+        auto *classMeta = FindUClass("Class /Script/CoreUObject.Class");
+        auto *cls       = classMeta ? reinterpret_cast<UClass *>(
+                                    LoadObjectByPath(classMeta, L"/Game/Avatar/BP_RemoteAvatarCCC.BP_RemoteAvatarCCC_C"))
+                                    : nullptr;
+        if (!cls) {
+            Log()->error("SpawnCccProxy: BP_RemoteAvatarCCC class not loaded (RemoteAvatar_P.pak mounted?)");
+            return nullptr;
+        }
+
+        // Raw-spawning a Biped_Character-derived BP crashes on AI-controller init. Disable AutoPossessAI
+        // on the CDO (the instance copies CDO values before BeginPlay), then restore so the game's own
+        // NPC spawns are unaffected.
+        uint8_t *aiByte = nullptr;
+        uint8_t aiSaved = 0;
+        if (auto *cdo = reinterpret_cast<UObjectBase *>(cls->ClassDefaultObject)) {
+            if (auto *p = FindPropertyInChain(cls, "AutoPossessAI")) {
+                aiByte  = reinterpret_cast<uint8_t *>(cdo) + p->GetOffset_ForInternal();
+                aiSaved = *aiByte;
+                *aiByte = 0; // EAutoPossessAI::Disabled
+            }
+        }
+
+        FVector loc = pos;
+        FRotator rot{0.f, yawDeg, 0.f};
+        FActorSpawnParameters spawnParams{};
+        spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        Log()->info("SpawnCccProxy: spawning BP_RemoteAvatarCCC (AutoPossessAI {})", aiByte ? "disabled" : "n/a");
+        auto *actor = UWorld__SpawnActor(*GWorld, cls, &loc, &rot, spawnParams);
+        if (aiByte) {
+            *aiByte = aiSaved; // restore the CDO
+        }
+        if (!actor) {
+            Log()->error("SpawnCccProxy: SpawnActor failed");
+            return nullptr;
+        }
+
+        // Scenery proxy: no collision, no fall. Tick STAYS ON so the baked AnimBP animates.
+        struct {
+            bool b;
+        } off{false};
+        CallUFunction(actor, "SetActorEnableCollision", &off);
+        if (auto *cmcCls = FindUClass("Class /Script/Engine.CharacterMovementComponent")) {
+            struct {
+                UClass *ComponentClass;
+                UObjectBase *ReturnValue;
+            } getCmc{cmcCls, nullptr};
+            CallUFunction(actor, "GetComponentByClass", &getCmc);
+            if (getCmc.ReturnValue) {
+                CallUFunction(getCmc.ReturnValue, "DisableMovement", nullptr);
+                SetFloatProperty(getCmc.ReturnValue, "GravityScale", 0.f);
+            }
+        }
+
+        // Seed the SCS-baked CCC so it renders the base character (the appearance wire overrides it later).
+        if (auto *cccCls = FindUClass("Class /Script/CustomizableCharacter.CustomizableCharacterComponent")) {
+            struct {
+                UClass *ComponentClass;
+                UObjectBase *ReturnValue;
+            } getCcc{cccCls, nullptr};
+            CallUFunction(actor, "GetComponentByClass", &getCcc);
+            if (getCcc.ReturnValue) {
+                // "SebastianSallow" is a real shipped HL NPC id: it builds a COMPLETE base CCC so the
+                // proxy renders a full character immediately. The appearance wire (a later commit)
+                // replaces it with the actual remote player's CCD.
+                FName cid = MakeFName(L"SebastianSallow");
+                CallUFunction(getCcc.ReturnValue, "SetCharacterID", &cid);
+                Log()->info("SpawnCccProxy: seeded SCS CCC with base id");
+            }
+            else {
+                Log()->warn("SpawnCccProxy: no SCS CCC on the pawn (renders default)");
+            }
+        }
+
+        // Hand back CharacterMesh0 for the caller (appearance apply, later commit).
+        if (auto *smcCls = FindUClass("Class /Script/Engine.SkeletalMeshComponent")) {
+            struct {
+                UClass *ComponentClass;
+                UObjectBase *ReturnValue;
+            } getMesh{smcCls, nullptr};
+            CallUFunction(actor, "GetComponentByClass", &getMesh);
+            if (outBodyMesh) {
+                *outBodyMesh = getMesh.ReturnValue;
+            }
+        }
+
+        Log()->info("SpawnCccProxy: spawned at ({:.0f}, {:.0f}, {:.0f})", pos.X, pos.Y, pos.Z);
+        return actor;
+    }
+
     void SpawnGroup(int count) {
         const auto localPlayer = gGlobals.localPlayer;
         if (!localPlayer || !localPlayer->PlayerController || !localPlayer->PlayerController->Pawn) {
@@ -622,12 +724,8 @@ namespace {
             const float offsetDeg = (static_cast<float>(i) - static_cast<float>(count - 1) * 0.5f) * kSpacingDeg;
             const float rad       = (rot.Yaw + offsetDeg) * kPi / 180.f;
             const FVector pos{loc.X + std::cos(rad) * kDistance, loc.Y + std::sin(rad) * kDistance, loc.Z};
-            // Alternate gender and cycle houses (spawn 8 to see all four houses
-            // in both genders); +180 so the students face back toward the player.
-            const bool female     = (i % 2 == 1);
-            const int house       = (i / 2) % 4;
             UObjectBase *skinComp = nullptr;
-            if (auto *actor = SpawnStudent(pos, rot.Yaw + offsetDeg + 180.f, female, house, &skinComp)) {
+            if (auto *actor = SpawnCccProxy(pos, rot.Yaw + offsetDeg + 180.f, &skinComp)) {
                 auto *obj         = reinterpret_cast<UObjectBase *>(actor);
                 const auto index  = static_cast<int32_t>(obj->GetUniqueID());
                 int32_t serial    = 0;
