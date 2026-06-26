@@ -47,6 +47,11 @@ namespace HogwartsMP::Core::Modules {
         glm::vec3 _lastTarget    = glm::vec3(0.0f);
         glm::quat _lastTargetRot = glm::identity<glm::quat>();
         bool _hasTarget          = false;
+
+        // Local-player appearance send state: the CacheCCD pointer last harvested (rebuild detection) and
+        // the content signature last sent (change detection).
+        void *_lastCacheCcd = nullptr;
+        uint64_t _apprSig   = 0;
     };
 
     // Owns the client-side Human type registration and the per-frame update fan-out, plus a pointer to
