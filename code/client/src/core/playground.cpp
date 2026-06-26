@@ -218,14 +218,6 @@ bool __fastcall UEngine__LoadMap_Hook(UEngine *_this, FWorldContext *WorldContex
 }
 
 
-typedef UObject *(__fastcall *StaticConstructObject_Internal_t)(const FStaticConstructObjectParameters &Params);
-StaticConstructObject_Internal_t StaticConstructObject_Internal_original = nullptr;
-
-UObject *__fastcall StaticConstructObject_Internal_Hook(const FStaticConstructObjectParameters &Params) {
-    auto res = StaticConstructObject_Internal_original(Params);
-    return res;
-}
-
 static InitFunction init([]() {
     using HogwartsMP::Core::AobFirst;
     using HogwartsMP::Game::gLayout;
@@ -245,12 +237,6 @@ static InitFunction init([]() {
 
     //NOTE: destroy actor
     UWorld__DestroyActor = reinterpret_cast<UWorld__DestroyActor_t>(AobFirst(gLayout.uworldDestroyActor));
-
-    //NOTE: create static object hook
-    auto StaticConstructObject_Internal_Addr = reinterpret_cast<uint64_t>(AobFirst(gLayout.staticConstructObject));
-    if (StaticConstructObject_Internal_Addr) {
-        MH_CreateHook((LPVOID)StaticConstructObject_Internal_Addr, &StaticConstructObject_Internal_Hook, (LPVOID *)&StaticConstructObject_Internal_original);
-    }
 
     //NOTE: get pointer to world
     auto GWorld_Scan = AobFirst(gLayout.gWorld);
