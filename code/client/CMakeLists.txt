@@ -31,6 +31,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/student_proxy.cpp
 
     src/core/ui/chat.cpp
+    src/core/ui/hud.cpp
     src/core/ui/console.cpp
     src/core/ui/teleport_manager.cpp
     src/core/ui/season_manager.cpp

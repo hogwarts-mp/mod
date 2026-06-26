@@ -70,6 +70,7 @@ namespace HogwartsMP::Core {
         _input            = std::make_shared<HogwartsMP::Game::GameInput>();
         _console          = std::make_shared<UI::Console>(_commandProcessor);
         _chat             = std::make_shared<UI::Chat>();
+        _hud              = std::make_shared<UI::Hud>();
 
         // Outgoing chat goes through the framework's built-in chat (server resolves the sender).
         _chat->SetOnMessageSentCallback([this](const std::string &msg) {
@@ -197,6 +198,21 @@ namespace HogwartsMP::Core {
         // proxies. No-op until replication is active.
         Core::Modules::Human::UpdateAll(_tickInterval);
 
+        // HUD on the game thread (NOT an ImGui widget), above the local-player
+        // early-returns so it also works in the menu.
+        if (_hud) {
+            _hud->Update();
+        }
+
+        // Edge-detect hotkeys before _input->Update() clears the edges (CEF's
+        // mid-tick pump would otherwise clear them first).
+        if (_input) {
+            if (_hud && _input->IsKeyPressed(FW_KEY_F8)) {
+                _hud->ToggleDevMenu();
+            }
+            _input->Update();
+        }
+
         // If we don't have the local player yet, we try to grab it at each tick until we have it
         // This should be part of a hook "once map loaded" or "once local player created"
         if (!gGlobals.localPlayer) {
@@ -230,36 +246,13 @@ namespace HogwartsMP::Core {
             discordApi->SetPresence("Broomstick", "Flying around", discord::ActivityType::Playing);
         }
 
-        #if 1
-        Core::gApplication->GetImGUI()->PushWidget([&]() {
-            using namespace Framework::External::ImGUI::Widgets;
-            const auto networkClient = Core::gApplication->GetNetworkingEngine()->GetNetworkClient();
-            const auto connState     = networkClient->GetConnectionState();
-            const auto ping          = networkClient->GetPing();
-
+        // Remaining ImGui panels (console + teleport-manager window). The HUD has
+        // taken over the corner text and F8 dev menu; these are retired in a later
+        // cleanup pass.
+        Core::gApplication->GetImGUI()->PushWidget([this]() {
             _console->Update();
             _devFeatures.Update();
-
-            if (_input->IsKeyPressed(FW_KEY_F8)) {
-                _console->Toggle();
-            }
-
-            const char *connStateNames[] = {"Connecting", "Online", "Offline"};
-
-            // versioning
-            DrawCornerText(CORNER_RIGHT_TOP, "Hogwarts Legacy Multiplayer");
-            DrawCornerText(CORNER_RIGHT_TOP, fmt::format("Framework version: {} ({})", Framework::Utils::Version::rel, Framework::Utils::Version::git));
-            DrawCornerText(CORNER_RIGHT_TOP, fmt::format("HogwartsMP version: {} ({})", HogwartsMP::Version::rel, HogwartsMP::Version::git));
-
-            // connection details
-            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Connection: {}", connStateNames[static_cast<size_t>(connState)]));
-            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Ping: {}", ping));
         });
-#endif
-
-        if (_input) {
-            _input->Update();
-        }
     }
 
     void Application::PostRender() {}

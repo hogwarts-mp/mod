@@ -20,7 +20,10 @@
 #include "UObject/UnrealType.h"
 
 #include <utils/string_utils.h>
-#include <imgui.h>
+
+#include <mutex>
+#include <optional>
+#include <vector>
 
 // Defined here (resolved in the InitFunction below) but shared via
 // ue4_natives.h so the reflection helpers can scan it.
@@ -70,109 +73,71 @@ UWorld **GWorld = nullptr;
 
 using namespace Framework::Utils::StringUtils;
 using HogwartsMP::Core::UE4::FindUClass;
-using HogwartsMP::Core::UE4::FindUFunction;
+
+// Dev-menu spawn/destroy requests, queued from the HUD event bridge and drained
+// on the game thread below. Spawn uses a fixed dev location; actors spawned this
+// way are tracked so Destroy can clean them all up.
+static std::mutex g_pgMutex;
+static std::optional<std::string> g_pendingSpawn;
+static bool g_pendingDestroy = false;
+static std::vector<AActor *> g_spawnedActors;
 
 void Playground_Tick() {
     // Game-thread pump: SpawnActor / StaticLoadObject / ProcessEvent must run
-    // here, not in the (render-thread) ImGui callback. The buttons below only
-    // set thread-safe request flags.
+    // here, not from the CEF event callbacks. The dev menu only queues requests.
     HogwartsMP::Core::StudentProxy::ProcessPending();
     HogwartsMP::Core::AppearanceDump::ProcessPending();
 
-    static AActor *lastActor = nullptr;
+    std::optional<std::string> spawn;
+    bool destroy = false;
+    {
+        std::lock_guard<std::mutex> lock(g_pgMutex);
+        spawn.swap(g_pendingSpawn);
+        destroy          = g_pendingDestroy;
+        g_pendingDestroy = false;
+    }
 
-    static char teleportLocation[250] = "FT_HW_TrophyRoom";
-    static bool doTeleport = false;
-
-    static char spawnObject[250] = "BlueprintGeneratedClass /Game/Pawn/NPC/Creature/GreyCat/BP_GreyCat_Creature.BP_GreyCat_Creature_C";
-    static bool doSpawn = false;
-
-    static std::vector<AActor *> spawnedActors;
-
-    HogwartsMP::Core::gApplication->GetImGUI()->PushWidget([&]() {
-        ImGui::Begin("Playground");
-
-        ImGui::Separator();
-        ImGui::InputText("Location", teleportLocation, 250);
-        if (ImGui::Button("Teleport")) {
-            UClass *fastTravelManager = FindUClass("Class /Script/Phoenix.FastTravelManager");
-            UFunction *fastTravelManagerGetter = FindUFunction("Function /Script/Phoenix.FastTravelManager.Get");
-
-            UClass *fastTravelmanagerInsance{nullptr};
-            fastTravelManager->ProcessEvent(fastTravelManagerGetter, (void *)&fastTravelmanagerInsance);
-
-            if (fastTravelmanagerInsance) {
-                auto wideTeleportLocation = NormalToWide(teleportLocation);
-                FString name(wideTeleportLocation.c_str());
-                Framework::Logging::GetLogger("Hooks")->info("Teleporting to {}, instance: {} !", teleportLocation, (void *)fastTravelmanagerInsance);
-
-                UFunction *fastTravelTo = FindUFunction("Function /Script/Phoenix.FastTravelManager.FastTravel_To");
-                fastTravelmanagerInsance->ProcessEvent(fastTravelTo, (void *)&name);
-            }
+    if (spawn) {
+        auto *foundObject = FindUClass(spawn->c_str());
+        if (!foundObject) {
+            Framework::Logging::GetLogger("Hooks")->info("Unable to find object: {}", *spawn);
         }
-
-        ImGui::Separator();
-        ImGui::InputText("UObject name", spawnObject, 250);
-        if (ImGui::Button("Spawn Actor")) {
-            auto *foundObject = FindUClass(spawnObject);
-            if (!foundObject) {
-                Framework::Logging::GetLogger("Hooks")->info("Unable to find object !");
-                ImGui::End();
-                return;
-            }
-
+        else {
             Framework::Logging::GetLogger("Hooks")->info("Found UObject: {}", narrow(foundObject->GetFName().ToString()).c_str());
 
-            FVector pos = {351002.25f, -463037.25f, -85707.94531f};
+            FVector pos  = {351002.25f, -463037.25f, -85707.94531f};
             FRotator rot = {0.0f, 0.0f, 0.0f};
 
-            FActorSpawnParameters spawnParams{};
+            FActorSpawnParameters spawnParams {};
             spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-            lastActor = UWorld__SpawnActor(*GWorld, foundObject, &pos, &rot, spawnParams);
-            if (lastActor != nullptr) {
-                spawnedActors.push_back(lastActor);
+            AActor *actor = UWorld__SpawnActor(*GWorld, foundObject, &pos, &rot, spawnParams);
+            if (actor) {
+                g_spawnedActors.push_back(actor);
             }
-            Framework::Logging::GetLogger("Hooks")->info("Spawned actor: {}", (void *)lastActor);
+            Framework::Logging::GetLogger("Hooks")->info("Spawned actor: {}", (void *)actor);
         }
+    }
 
-        if (ImGui::Button("Destroy Actor")) {
-            if (lastActor) {
-                // UWorld__DestroyActor(*GWorld, lastActor, false, true);
-                // Framework::Logging::GetLogger("Hooks")->info("Destroyed actor: {}", (void *)lastActor);
-                // lastActor = nullptr;
-                for (auto *actor : spawnedActors) {
-                    UWorld__DestroyActor(*GWorld, actor, false, true);
-                }
-            }
+    if (destroy) {
+        for (auto *actor : g_spawnedActors) {
+            UWorld__DestroyActor(*GWorld, actor, false, true);
         }
-
-        // Student proxies — no-pak student kit (core/student_proxy.cpp). Buttons
-        // only queue a request; the spawn/despawn runs on the game thread in
-        // ProcessPending() at the top of Playground_Tick.
-        ImGui::Separator();
-        ImGui::Text("Students active: %zu", HogwartsMP::Core::StudentProxy::ActiveCount());
-        static int studentCount = 1;
-        ImGui::SliderInt("Count", &studentCount, 1, 10);
-        if (ImGui::Button("Spawn Student(s)")) {
-            HogwartsMP::Core::StudentProxy::RequestSpawn(studentCount);
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Despawn Students")) {
-            HogwartsMP::Core::StudentProxy::RequestDespawnAll();
-        }
-
-        ImGui::Separator();
-        ImGui::TextDisabled("Appearance harvest");
-        if (ImGui::Button("Dump Nearby NPC Appearances")) {
-            HogwartsMP::Core::AppearanceDump::RequestDump();
-        }
-        ImGui::SameLine();
-        ImGui::TextDisabled("(logs to AppearanceDump channel)");
-
-        ImGui::End();
-    });
+        g_spawnedActors.clear();
+    }
 }
+
+namespace HogwartsMP::Core::Playground {
+    void RequestSpawnActor(const std::string &objectPath) {
+        std::lock_guard<std::mutex> lock(g_pgMutex);
+        g_pendingSpawn = objectPath;
+    }
+
+    void RequestDestroyActors() {
+        std::lock_guard<std::mutex> lock(g_pgMutex);
+        g_pendingDestroy = true;
+    }
+} // namespace HogwartsMP::Core::Playground
 
 AActor *__fastcall UWorld__SpawnActor_Hook(UWorld *world, UClass *Class, FVector const *Location, FRotator const *Rotation, const FActorSpawnParameters &SpawnParameters) {
     return UWorld__SpawnActor(world, Class, Location, Rotation, SpawnParameters);
