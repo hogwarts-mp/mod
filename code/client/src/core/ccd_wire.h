@@ -10,6 +10,9 @@ namespace HogwartsMP::Core::CcdWire {
     // to keep SDK types out of the header). Used by the dev spawn preview (student_proxy.cpp).
     void MirrorLocalCcdToProxyCcc(void *proxyCcc);
 
-    // Apply a RECEIVED CcdProfile to the proxy CCC — the per-player network path. Not yet wired (commit 7).
+    // Apply a RECEIVED CcdProfile to the proxy CCC — the per-player network path.
     void MirrorCcdToProxyCcc(void *proxyCcc, const HogwartsMP::Shared::Modules::CcdProfile &profile);
+
+    // Drop the rooted-CCD bookkeeping for a destroyed proxy (call on despawn).
+    void ForgetProxy(void *proxyCcc);
 } // namespace HogwartsMP::Core::CcdWire

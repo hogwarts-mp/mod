@@ -35,9 +35,8 @@ namespace HogwartsMP::Core::StudentProxy {
     // student. Only valid while FirstActive() is alive.
     UObjectBase *FirstActiveSkin();
 
-    // Registry-free spawn/destroy for remote-player avatars (game thread
-    // only). appearance selects gender + house; outSkinComp receives the skin
-    // component for anim playback.
-    AActor *SpawnProxy(float x, float y, float z, float yawDeg, Appearance appearance, UObjectBase **outSkinComp);
+    // Spawn a remote-avatar proxy (BP_RemoteAvatarCCC from the pak). outCcc receives the proxy's
+    // CustomizableCharacterComponent so the caller can apply the player's CCD (see CcdWire). Game thread only.
+    AActor *SpawnProxy(float x, float y, float z, float yawDeg, UObjectBase **outCcc);
     void DestroyProxy(AActor *actor);
 } // namespace HogwartsMP::Core::StudentProxy

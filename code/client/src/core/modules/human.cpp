@@ -4,6 +4,7 @@
 
 #include "core/appearance_dump.h"
 #include "core/application.h"
+#include "core/ccd_wire.h"
 #include "core/student_proxy.h"
 #include "sdk/natives/ue4_natives.h"
 #include "sdk/reflection/ue4_reflection.h"
@@ -155,26 +156,30 @@ namespace HogwartsMP::Core::Modules {
     void ClientHuman::SpawnProxy() {
         _interpolator.GetPosition()->SetCompensationFactor(1.5f);
 
-        // TODO(appearance sync): derive gender/house from spawnProfile once it carries appearance;
-        // defaults to Gryffindor male.
-        const StudentProxy::Appearance appearance {};
-        UObjectBase *skin = nullptr;
-        auto *actor       = StudentProxy::SpawnProxy(position.x, position.y, position.z, 0.f, appearance, &skin);
+        UObjectBase *ccc = nullptr;
+        auto *actor      = StudentProxy::SpawnProxy(position.x, position.y, position.z, 0.f, &ccc);
         if (!actor) {
             Framework::Logging::GetLogger("Human")->error("Remote avatar spawn failed");
             return;
         }
         _actor         = actor;
         _actorIndex    = ObjectIndex(actor);
-        _skin          = skin;
+        _ccc           = ccc;
         _lastTarget    = position;
         _lastTargetRot = rotation;
         _hasTarget     = true;
 
-        // ccd arrived on the construction snapshot (commit 5 wires the transport; commit 6 applies it).
-        Framework::Logging::GetLogger("Human")->info("Remote avatar {}: ccd items={} outfits={}", nickname,
-                                                     static_cast<int>(ccd.characterItems.size()),
-                                                     static_cast<int>(ccd.outfits.size()));
+        // Dress the proxy from the ccd carried on the construction snapshot (empty until it arrives).
+        ApplyAppearance();
+    }
+
+    // Apply the entity's ccd (from construction or a later AppearanceUpdate) to the proxy CCC. No-op until
+    // the proxy exists and the ccd carries worn pieces — an all-empty ccd is a remote whose appearance
+    // hasn't arrived yet, so the seeded base stays. (characterItems || outfits = what reconstruct dresses.)
+    void ClientHuman::ApplyAppearance() {
+        if (_ccc && (!ccd.characterItems.empty() || !ccd.outfits.empty())) {
+            CcdWire::MirrorCcdToProxyCcc(_ccc, ccd);
+        }
     }
 
     void ClientHuman::Update(float tickInterval) {
@@ -279,6 +284,7 @@ namespace HogwartsMP::Core::Modules {
         }
         else {
             StudentProxy::DestroyProxy(AliveActor(_actor, _actorIndex));
+            CcdWire::ForgetProxy(_ccc); // unroot the CCD we layered onto this proxy
         }
         delete this;
     }

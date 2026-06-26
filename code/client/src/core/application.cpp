@@ -278,7 +278,7 @@ namespace HogwartsMP::Core {
             Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Sync Weather! ({}, season {})", msg.data.weather, msg.data.season);
         });
 
-        // Live appearance change; store on the replica (commit 6 applies it).
+        // Live appearance change: store it on the replica and (re)dress the proxy.
         net->RegisterRPC<Shared::RPC::AppearanceUpdate>([](const Shared::RPC::AppearanceUpdate &msg, MafiaNet::Packet *) {
             auto *repl  = Framework::CoreModules::GetReplication();
             auto *human = repl ? repl->GetEntity<Core::Modules::ClientHuman>(msg.networkId) : nullptr;
@@ -286,9 +286,7 @@ namespace HogwartsMP::Core {
                 return;
             }
             human->ccd = msg.ccd;
-            Framework::Logging::GetLogger("Human")->info("AppearanceUpdate for {}: items={} outfits={}", msg.networkId,
-                                                         static_cast<int>(msg.ccd.characterItems.size()),
-                                                         static_cast<int>(msg.ccd.outfits.size()));
+            human->ApplyAppearance();
         });
     }
 

@@ -831,8 +831,23 @@ namespace HogwartsMP::Core::StudentProxy {
         return nullptr;
     }
 
-    AActor *SpawnProxy(float x, float y, float z, float yawDeg, Appearance appearance, UObjectBase **outSkinComp) {
-        return SpawnStudent({x, y, z}, yawDeg, appearance.female, std::clamp(appearance.house, 0, 3), outSkinComp);
+    AActor *SpawnProxy(float x, float y, float z, float yawDeg, UObjectBase **outCcc) {
+        if (outCcc) {
+            *outCcc = nullptr;
+        }
+        UObjectBase *body = nullptr;
+        auto *actor       = SpawnCccProxy({x, y, z}, yawDeg, &body);
+        if (actor && outCcc) {
+            struct {
+                UClass *ComponentClass;
+                UObjectBase *ReturnValue;
+            } gc{FindUClass("Class /Script/CustomizableCharacter.CustomizableCharacterComponent"), nullptr};
+            if (gc.ComponentClass) {
+                CallUFunction(reinterpret_cast<UObjectBase *>(actor), "GetComponentByClass", &gc);
+                *outCcc = gc.ReturnValue;
+            }
+        }
+        return actor;
     }
 
     void DestroyProxy(AActor *actor) {
