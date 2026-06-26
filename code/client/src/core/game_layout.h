@@ -93,7 +93,7 @@ namespace HogwartsMP::Game {
         // overload, which is the WRONG function on this build (returned null).
         {"Playground/UWorld::SpawnActor", "40 53 56 57 48 83 EC 70 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 60 0F 28 1D", false},
         {"Playground/UWorld::DestroyActor", "40 53 56 57 41 54 41 55 41 57 48 81 EC 18", false}, // verified: despawn works
-        {"Playground/StaticConstructObject_Internal", "48 89 5C 24 10 48 89 74 24 18 55 57 41 54 41 56 41 57 48 8D AC 24 50 FF FF FF", false}, // unverified (hooked, no-op)
+        {"Playground/StaticConstructObject_Internal", "48 89 5C 24 10 48 89 74 24 18 55 57 41 54 41 56 41 57 48 8D AC 24 50 FF FF FF", false}, // re-scanned by ccd_wire; do NOT hook (a hook patches the prologue + breaks the re-scan)
         {"Core/StaticLoadObject", "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 88 FC FF FF 48 81 EC 78 04 00 00 48 8B 05", false}, // verified: assets load
         {"Engine/EngineTick", "E8 ? ? ? ? 80 3D ? ? ? ? ? 74 EB", false}, // verified: tick runs
 

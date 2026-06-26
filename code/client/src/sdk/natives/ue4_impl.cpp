@@ -1,6 +1,7 @@
 #pragma once
 #include <logging/logger.h>
 #include "UObject/Class.h"
+#include "UObject/UnrealType.h"
 #include <utils/hooking/hook_function.h>
 #include <utils/hooking/hooking_patterns.h>
 #include "core/aob_scan.h"
@@ -24,6 +25,20 @@ void* FMemory::Realloc(void* Original, SIZE_T Count, uint32 Alignment) {
 
 size_t FMemory::QuantizeSize(SIZE_T Count, uint32_t Alignment) {
     return gMalloc->QuantizeSize(Count, Alignment);
+}
+
+// FScriptMapHelper::AddPair needs these: key hashing (forwards to the virtual) + the map allocator's
+// growth (stock FMemory::Realloc — our runtime-built maps are never frozen).
+uint32 FProperty::GetValueTypeHash(const void *Src) const {
+    return GetValueTypeHashInternal(Src);
+}
+
+void FMemoryImageAllocatorBase::ResizeAllocation(int32 PreviousNumElements, int32 NumElements, SIZE_T NumBytesPerElement, uint32 Alignment) {
+    (void)PreviousNumElements;
+    FScriptContainerElement *LocalData = Data.Get();
+    if (!Data.IsFrozen() && (LocalData || NumElements > 0)) {
+        Data = (FScriptContainerElement *)FMemory::Realloc(LocalData, NumElements * NumBytesPerElement, Alignment);
+    }
 }
 
 FString FName::ToString() const {

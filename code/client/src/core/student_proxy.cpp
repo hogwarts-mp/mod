@@ -37,6 +37,7 @@
 #include "student_proxy.h"
 
 #include "application.h"
+#include "ccd_wire.h"
 #include "kit_params.h"
 #include "kit_params_female_uni03.h"
 #include "kit_params_houses.h"
@@ -736,6 +737,18 @@ namespace {
                 }
                 g_students.push_back({actor, index, serial, skinComp});
                 ++spawned;
+
+                // Dev preview: dress the proxy as the LOCAL player (verifies CCD reconstruct + LayerCCD).
+                struct {
+                    UClass *ComponentClass;
+                    UObjectBase *ReturnValue;
+                } getCcc{FindUClass("Class /Script/CustomizableCharacter.CustomizableCharacterComponent"), nullptr};
+                if (getCcc.ComponentClass) {
+                    CallUFunction(obj, "GetComponentByClass", &getCcc);
+                    if (getCcc.ReturnValue) {
+                        HogwartsMP::Core::CcdWire::MirrorLocalCcdToProxyCcc(getCcc.ReturnValue);
+                    }
+                }
             }
         }
         PublishActiveCount();
