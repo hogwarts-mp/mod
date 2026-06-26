@@ -28,6 +28,9 @@ namespace HogwartsMP::Core::Modules {
             return _isLocal;
         }
 
+        // (Re)dress the proxy from this entity's ccd — called on spawn and on each AppearanceUpdate.
+        void ApplyAppearance();
+
       private:
         void SpawnProxy();
         void UpdateLocal(float tickInterval);
@@ -35,11 +38,11 @@ namespace HogwartsMP::Core::Modules {
 
         bool _isLocal = false;
 
-        // Remote avatar: a student proxy. actorIndex guards the pointer against GC slot reuse (cf.
-        // StudentProxy::ResolveAlive). skin is the head/hands component kept for anim/mount handling.
+        // Remote avatar: the BP_RemoteAvatarCCC proxy. actorIndex guards the pointer against GC slot reuse
+        // (cf. StudentProxy::ResolveAlive); ccc is its CustomizableCharacterComponent (the appearance target).
         AActor *_actor      = nullptr;
         int32_t _actorIndex = -1;
-        UObjectBase *_skin  = nullptr;
+        UObjectBase *_ccc   = nullptr;
 
         Framework::Utils::Interpolator _interpolator = {};
         // Last replicated transform we set up an interpolation leg toward, so a fresh packet is

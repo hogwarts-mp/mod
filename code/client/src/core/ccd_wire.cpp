@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace {
@@ -41,6 +42,21 @@ namespace {
             item->SetFlags(EInternalObjectFlags::RootSet);
         }
     }
+
+    // Reverse of RootObject.
+    void UnrootObject(UObjectBase *obj) {
+        auto *arr = gGlobals.objectArray;
+        if (!obj || !arr) {
+            return;
+        }
+        auto *item = arr->IndexToObject(static_cast<int32_t>(obj->GetUniqueID()));
+        if (item && item->Object == obj) {
+            item->ClearFlags(EInternalObjectFlags::RootSet);
+        }
+    }
+
+    // The CCD we rooted per proxy CCC, so a re-apply (AppearanceUpdate) unroots the prior one.
+    std::unordered_map<UObjectBase *, UObjectBase *> g_lastCcd;
 
     // Mirror of FStaticConstructObjectParameters (UObjectGlobals.h) — its real ctor is COREUOBJECT_API
     // (engine-exported, can't link), so we lay out the struct by hand and pass it by const& to the
@@ -104,8 +120,7 @@ namespace {
             log->error("[recon] construct returned null");
             return nullptr;
         }
-        // TODO(commit 7): per-proxy cache + unroot — every apply roots a fresh CCD and never frees the prior.
-        RootObject(ccd);
+        RootObject(ccd); // unrooted on the next apply / despawn via g_lastCcd (see ApplyCcdToProxy)
         auto *ccdBase = reinterpret_cast<uint8_t *>(ccd);
         auto wstr     = [](const std::string &s) { return std::wstring(s.begin(), s.end()); };
 
@@ -224,7 +239,13 @@ namespace {
     // Give the proxy a synchronous Sebastian base (so its CacheCCD is populated), then LayerCCDOverTarget
     // `newCcd` over it + ReloadCharacter. Confirmed in-game: this renders on a runtime-added proxy CCC.
     void ApplyCcdToProxy(UObjectBase *proxyCcc, UObjectBase *newCcd) {
-        auto log         = Log();
+        auto log = Log();
+        // Unroot the CCD rooted for this proxy on the previous apply (don't leak on re-apply).
+        if (auto it = g_lastCcd.find(proxyCcc); it != g_lastCcd.end() && it->second != newCcd) {
+            UnrootObject(it->second);
+        }
+        g_lastCcd[proxyCcc] = newCcd;
+
         const FName base = MakeFName(L"SebastianSallow");
         struct {
             FName InRegistryID;
@@ -274,6 +295,8 @@ namespace {
 
     // Network path: reconstruct a CCD from the wire profile, then layer it. Needs StaticConstructObject
     // (currently stale in game_layout.h on this build — must be re-derived before the network path renders).
+    // Each call reconstructs a CCD and does two GUObjectArray scans (reference CCD + UGCBlueprintLibrary).
+    // Fine because AppearanceUpdate is change-gated; cache those handles if it ever becomes chatty.
     void ApplyCcdProfileToProxy(UObjectBase *proxyCcc, const HogwartsMP::Shared::Modules::CcdProfile &prof) {
         if (!proxyCcc) {
             Log()->error("[ccdmirror] no proxy CCC");
@@ -306,5 +329,13 @@ namespace HogwartsMP::Core::CcdWire {
 
     void MirrorCcdToProxyCcc(void *proxyCcc, const HogwartsMP::Shared::Modules::CcdProfile &profile) {
         ApplyCcdProfileToProxy(reinterpret_cast<UObjectBase *>(proxyCcc), profile);
+    }
+
+    void ForgetProxy(void *proxyCcc) {
+        auto *ccc = reinterpret_cast<UObjectBase *>(proxyCcc);
+        if (auto it = g_lastCcd.find(ccc); it != g_lastCcd.end()) {
+            UnrootObject(it->second);
+            g_lastCcd.erase(it);
+        }
     }
 } // namespace HogwartsMP::Core::CcdWire
