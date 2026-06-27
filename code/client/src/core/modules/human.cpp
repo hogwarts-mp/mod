@@ -246,6 +246,80 @@ namespace {
         }
         return AliveActor(actor, actorIndex);
     }
+
+    const wchar_t *kProxyWandMesh = L"/Game/RiggedObjects/Props/Wands/CharacterWands/SK_Wands_Student01.SK_Wands_Student01";
+
+    // Attach a wand to the proxy's hand. HL has no "wand drawn" state — the wand is always parented to the
+    // body mesh (CharacterMesh0) at the "WandSocket" bone and just rides the arm pose. So we mirror that:
+    // a SkeletalMeshActor holding the wand mesh, attached to the body mesh at WandSocket. Always on.
+    // Returns the actor (null on failure). Same spawn+attach idiom as the broom.
+    AActor *SpawnWandOnProxy(AActor *proxy, UObjectBase *mesh) {
+        if (!proxy || !mesh || !GWorld || !*GWorld || !UWorld__SpawnActor) {
+            return nullptr;
+        }
+        static auto *actorCls = FindUClass("Class /Script/Engine.SkeletalMeshActor");
+        static auto *skmCls   = FindUClass("Class /Script/Engine.SkeletalMesh");
+        if (!actorCls || !skmCls) {
+            return nullptr;
+        }
+        static auto *wandMesh = []() -> UObjectBase * {
+            // Pin into the GC root set on first load (a cached static dangles after a collection otherwise).
+            auto *m = LoadObjectByPath(skmCls, kProxyWandMesh);
+            RootObject(m);
+            return m;
+        }();
+        if (!wandMesh) {
+            return nullptr;
+        }
+        const Vec3f loc = GetActorPos(proxy);
+        FVector pos {loc.X, loc.Y, loc.Z};
+        FRotator rot {0.f, 0.f, 0.f};
+        FActorSpawnParameters params {};
+        params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        auto *wandActor = UWorld__SpawnActor(*GWorld, actorCls, &pos, &rot, params);
+        if (!wandActor) {
+            return nullptr;
+        }
+        struct {
+            bool b;
+        } noCol {false};
+        CallUFunction(wandActor, "SetActorEnableCollision", &noCol); // don't shove the avatar around
+
+        UObjectBase *comp = ReadObjectProperty(wandActor, "SkeletalMeshComponent");
+        if (!comp) {
+            auto *smcCls = FindUClass("Class /Script/Engine.SkeletalMeshComponent");
+            struct {
+                UClass *ComponentClass;
+                UObjectBase *ReturnValue;
+            } get {smcCls, nullptr};
+            CallUFunction(wandActor, "GetComponentByClass", &get);
+            comp = get.ReturnValue;
+        }
+        if (!comp) {
+            // No mesh component to dress — destroy the actor rather than leave an empty one parked at the
+            // proxy until it dies (near-impossible for a stock SkeletalMeshActor, but keep it strict).
+            UWorld__DestroyActor(*GWorld, wandActor, false, true);
+            return nullptr;
+        }
+        {
+            struct {
+                UObjectBase *NewMesh;
+                bool bReinitPose;
+            } sm {wandMesh, true};
+            CallUFunction(comp, "SetSkeletalMesh", &sm);
+        }
+        // Attach to the body mesh at WandSocket (snap so it rides the hand pose).
+        struct {
+            UObjectBase *Parent;
+            FName SocketName;
+            uint8_t LocationRule;      // 2 = SnapToTarget
+            uint8_t RotationRule;      // 2 = SnapToTarget
+            uint8_t ScaleRule;         // 1 = KeepWorld
+            bool bWeldSimulatedBodies; // false
+        } att {mesh, MakeFName(L"WandSocket"), 2, 2, 1, false};
+        CallUFunction(wandActor, "K2_AttachToComponent", &att);
+        return wandActor;
+    }
 } // namespace
 
 namespace HogwartsMP::Core::Modules {
@@ -594,6 +668,11 @@ namespace HogwartsMP::Core::Modules {
             return false;
         }
         _proxyReady = true;
+        // The hand socket exists now — give the proxy its (always-on) wand.
+        if (auto *wand = SpawnWandOnProxy(_actor, _mesh)) {
+            _wand      = wand;
+            _wandIndex = ObjectIndex(wand);
+        }
         Framework::Logging::GetLogger("Human")->info("CCC proxy build complete — locomotion enabled");
         return true;
     }
@@ -605,10 +684,11 @@ namespace HogwartsMP::Core::Modules {
             }
         }
         else {
-            // Tear the broom down first so it isn't orphaned when the proxy goes away.
+            // Tear the broom + wand down first so they aren't orphaned when the proxy goes away.
             if (_mounted) {
                 BroomRider::Dismount(AliveActor(_actor, _actorIndex), nullptr, AliveActor(_broom, _broomIndex));
             }
+            StudentProxy::DestroyProxy(AliveActor(_wand, _wandIndex));
             StudentProxy::DestroyProxy(AliveActor(_actor, _actorIndex));
             CcdWire::ForgetProxy(_ccc); // unroot the CCD we layered onto this proxy
         }

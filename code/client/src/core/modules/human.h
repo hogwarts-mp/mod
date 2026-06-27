@@ -64,6 +64,11 @@ namespace HogwartsMP::Core::Modules {
         int32_t _broomIndex = -1;
         bool _mounted       = false;
 
+        // Wand mesh actor attached to the proxy's hand (always on — HL has no holster state). Spawned once
+        // the body mesh is built; wandIndex guards the pointer.
+        AActor *_wand      = nullptr;
+        int32_t _wandIndex = -1;
+
         // Snapshot interpolation buffer: each fresh replicated transform is recorded with its arrival time;
         // the proxy renders at (now - bufferDelay) by lerping the two snapshots bracketing it — smooth
         // regardless of frame/packet rate, ~bufferDelay in the past. Replaces the framework error-chaser
