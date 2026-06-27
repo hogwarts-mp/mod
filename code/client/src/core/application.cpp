@@ -24,8 +24,6 @@
 #include <networking/replication/replication_manager.h>
 #include <scripting/engine.h>
 
-#include "external/imgui/widgets/corner_text.h"
-
 #include "shared/rpc/set_appearance.h"
 #include "shared/rpc/set_weather.h"
 #include "shared/version.h"
@@ -68,7 +66,6 @@ namespace HogwartsMP::Core {
 
         _commandProcessor = std::make_shared<Framework::Utils::CommandProcessor>();
         _input            = std::make_shared<HogwartsMP::Game::GameInput>();
-        _console          = std::make_shared<UI::Console>(_commandProcessor);
         _chat             = std::make_shared<UI::Chat>();
         _hud              = std::make_shared<UI::Hud>();
 
@@ -246,13 +243,6 @@ namespace HogwartsMP::Core {
             discordApi->SetPresence("Broomstick", "Flying around", discord::ActivityType::Playing);
         }
 
-        // Remaining ImGui panels (console + teleport-manager window). The HUD has
-        // taken over the corner text and F8 dev menu; these are retired in a later
-        // cleanup pass.
-        Core::gApplication->GetImGUI()->PushWidget([this]() {
-            _console->Update();
-            _devFeatures.Update();
-        });
     }
 
     void Application::PostRender() {}

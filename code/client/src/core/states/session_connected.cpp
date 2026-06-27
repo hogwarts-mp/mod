@@ -3,8 +3,6 @@
 
 #include <utils/states/machine.h>
 
-#include <external/imgui/widgets/corner_text.h>
-
 #include "core/application.h"
 
 namespace HogwartsMP::Core::States {
@@ -21,34 +19,22 @@ namespace HogwartsMP::Core::States {
     }
 
     bool SessionConnectedState::OnEnter(Framework::Utils::States::Machine *) {
-        // Reset camera by player
-        // TODO
-
-        // Give back controls
-        // TODO
-
         Core::gApplication->GetDevFeatures().GetTeleportManager()->TeleportTo("Hogwarts");
 
+        gApplication->GetHud()->SetBanner("You are connected\nPress F9 to disconnect");
         return true;
     }
 
     bool SessionConnectedState::OnExit(Framework::Utils::States::Machine *) {
         gApplication->GetChat()->Hide();
+        gApplication->GetHud()->SetBanner("");
         return true;
     }
 
     bool SessionConnectedState::OnUpdate(Framework::Utils::States::Machine *) {
         // Web-backed chat runs on the game thread, NOT inside an ImGui widget — key
         // edges set by the CEF message pump are cleared before deferred widgets run.
-        if (!gApplication->GetDevConsole()->IsOpen()) {
-            gApplication->GetChat()->Update();
-        }
-
-        gApplication->GetImGUI()->PushWidget([]() {
-            using namespace Framework::External::ImGUI::Widgets;
-            DrawCornerText(CORNER_RIGHT_TOP, "YOU ARE CONNECTED");
-            DrawCornerText(CORNER_RIGHT_TOP, "Press F9 to disconnect");
-        });
+        gApplication->GetChat()->Update();
 
         if (gApplication->GetInput()->IsKeyPressed(FW_KEY_F9)) {
             (void)gApplication->GetNetworkingEngine()->GetNetworkClient()->Disconnect();
