@@ -1,6 +1,5 @@
 #pragma once
 
-// AUTO-GENERATED from tools/AssetPathDump/assets.txt (the DA_*SpellRecord DataAssets).
 // APPEND-ONLY: wire spell ids are 1-based indices into kSpellRecords (id 0 = none/unknown). Do NOT
 // reorder or insert — that shifts ids and breaks cross-version compat. To add spells, append at the end
 // and regenerate. The proxy can only load a record in this allowlist (no arbitrary asset loads).
