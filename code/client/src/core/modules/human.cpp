@@ -368,10 +368,15 @@ namespace {
 
     // Combat-AnimBP FullBodyState values (mapped by watching the local body anim instance): 7 = spell
     // cast (full-body, rooted). Neither is a montage on the source player, so the AnimBP state is the handle.
-    constexpr int kCastFullBodyState = 7;
+    constexpr int kCastFullBodyState  = 7;
+    constexpr int kDodgeFullBodyState = 13;
     bool DetectCast(void *pawn) {
         auto *inst = LocalBodyAnimInstance(pawn);
         return inst && ReadByteProperty(inst, "FullBodyState") == kCastFullBodyState;
+    }
+    bool DetectDodge(void *pawn) {
+        auto *inst = LocalBodyAnimInstance(pawn);
+        return inst && ReadByteProperty(inst, "FullBodyState") == kDodgeFullBodyState;
     }
 
     // The local player's WandTool (the GetActiveSpellTool holder), cached per pawn: prefer one whose outer
@@ -782,6 +787,9 @@ namespace HogwartsMP::Core::Modules {
         // Wand light (Lumos): sustained on-foot state — the proxy attaches a warm light + arm-up pose while set.
         SetFlag(Shared::Modules::HumanSync::Lumos, !mounted && DetectLumos(pc->Pawn));
 
+        // Dodge-roll: held for the roll; the proxy plays its roll montage on the rising edge.
+        SetFlag(Shared::Modules::HumanSync::Dodge, !mounted && DetectDodge(pc->Pawn));
+
         // World velocity — only while mounted (remotes dead-reckon the broom from it; the on-foot snapshot
         // path ignores it). Zeroed on foot so the value stops changing and its delta Field goes quiet.
         if (mounted) {
@@ -917,6 +925,7 @@ namespace HogwartsMP::Core::Modules {
             }
             UpdateCast();
             UpdateLumos();
+            UpdateDodge();
         }
     }
 
@@ -1102,6 +1111,25 @@ namespace HogwartsMP::Core::Modules {
             }
         }
         _castLast = casting;
+    }
+
+    // Play the dodge-roll montage on the proxy when the synced Dodge flag rises. HL drives the source
+    // player's dodge by combat-AnimBP state (not a montage), so we re-author it as a full-body montage into
+    // DefaultSlot; the roll's ground displacement still comes from the synced position. Native clip loaded
+    // by path, cached + GC-rooted. Skipped while mounted.
+    void ClientHuman::UpdateDodge() {
+        const bool dodging = IsDodging();
+        if (dodging && !_dodgeLast && _mesh && !_mounted) {
+            static UObjectBase *clip = [] {
+                auto *c = LoadAnimSequence(L"/Game/Animation/Human/Hu_Cmbt_DdgeRll_Fwd_anm.Hu_Cmbt_DdgeRll_Fwd_anm");
+                RootObject(c);
+                return c;
+            }();
+            if (clip) {
+                PlaySlotMontageOnSkin(_mesh, clip, L"DefaultSlot");
+            }
+        }
+        _dodgeLast = dodging;
     }
 
     // Mirror the synced Lumos state onto the proxy: on the rising edge attach a warm light at the wand tip
