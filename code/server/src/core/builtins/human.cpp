@@ -18,6 +18,8 @@
 
 #include <mafianet/types.h>
 
+#include <algorithm>
+#include <cmath>
 #include <sstream>
 
 namespace HogwartsMP::Scripting {
@@ -213,6 +215,14 @@ namespace HogwartsMP::Scripting {
         }
     }
 
+    void Human::SetCasting(bool casting, double spellId, double aimPitch) {
+        if (auto *e = ResolveHuman(GetId())) {
+            e->SetFlag(Shared::Modules::HumanSync::Cast, casting);
+            e->data.spellId  = casting ? static_cast<uint8_t>(spellId) : 0;
+            e->data.aimPitch = casting ? static_cast<int8_t>(std::lround(std::clamp(aimPitch, -90.0, 90.0))) : 0;
+        }
+    }
+
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
         auto it = _classes.find(isolate);
         if (it != _classes.end()) {
@@ -232,6 +242,7 @@ namespace HogwartsMP::Scripting {
             .function("setInAir", &Human::SetInAir)
             .function("setMounted", &Human::SetMounted)
             .function("setVelocity", &Human::SetVelocity)
+            .function("setCasting", &Human::SetCasting)
             .function("emit", &Human::Emit)
             .function("setData", &Human::SetData)
             .function("hasData", &Human::HasData)

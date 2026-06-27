@@ -78,6 +78,7 @@ const npcs = [];
 const MAX_NPCS = 20;
 let npcWalkTimer = null;
 let npcBroomTimer = null;
+let npcCastTimer = null;
 
 Events.on("playerConnect", (player) => {
     const visits = bumpVisitCount();
@@ -299,6 +300,33 @@ Events.on("chatCommand", (player, message, command, args) => {
             break;
         }
 
+        case "castnpcs": {
+            if (npcCastTimer) {
+                clearInterval(npcCastTimer);
+                npcCastTimer = null;
+                for (const npc of npcs) npc.setCasting(false, 0, 0);
+                player.sendChat("[DEV] NPC casting stopped");
+                break;
+            }
+            if (npcs.length === 0) {
+                player.sendChat("[DEV] No NPCs to cast — use /spawnnpc first");
+                break;
+            }
+            // Toggle the Cast flag on/off each second: each rising edge makes the proxy play the cast
+            // montage + fire the real spell (id 6 = Confringo, a visible fire blast). Optional /castnpcs
+            // <pitch°> (default 25, +up) sets the aim angle so the vertical-aim sync can be eyeballed with
+            // a single client — otherwise the NPC fires dead level.
+            const pitch = args.length >= 1 ? parseFloat(args[0]) : 25;
+            const aim = isNaN(pitch) ? 0 : pitch;
+            let casting = false;
+            npcCastTimer = setInterval(() => {
+                casting = !casting;
+                for (const npc of npcs) npc.setCasting(casting, casting ? 6 : 0, casting ? aim : 0);
+            }, 1000);
+            player.sendChat(`[DEV] ${npcs.length} NPC(s) casting Confringo on a loop at ${aim}° (run /castnpcs again to stop)`);
+            break;
+        }
+
         case "clearnpcs": {
             if (npcWalkTimer) {
                 clearInterval(npcWalkTimer);
@@ -307,6 +335,10 @@ Events.on("chatCommand", (player, message, command, args) => {
             if (npcBroomTimer) {
                 clearInterval(npcBroomTimer);
                 npcBroomTimer = null;
+            }
+            if (npcCastTimer) {
+                clearInterval(npcCastTimer);
+                npcCastTimer = null;
             }
             for (const npc of npcs) {
                 npc.destroy();
