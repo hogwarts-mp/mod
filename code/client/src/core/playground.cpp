@@ -3,6 +3,7 @@
 #include "appearance_dump.h"
 #include "application.h"
 #include "aob_scan.h"
+#include "broom_experiment.h"
 #include "student_proxy.h"
 #include "sdk/natives/ue4_natives.h"
 #include "sdk/reflection/ue4_reflection.h"
@@ -87,6 +88,7 @@ void Playground_Tick() {
     // here, not from the CEF event callbacks. The dev menu only queues requests.
     HogwartsMP::Core::StudentProxy::ProcessPending();
     HogwartsMP::Core::AppearanceDump::ProcessPending();
+    HogwartsMP::Core::BroomExperiment::ProcessPending();
 
     std::optional<std::string> spawn;
     bool destroy = false;

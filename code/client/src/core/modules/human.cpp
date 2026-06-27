@@ -4,12 +4,14 @@
 
 #include "core/appearance_dump.h"
 #include "core/application.h"
+#include "core/broom_experiment.h"
 #include "core/ccd_wire.h"
 #include "core/proxy_locomotion.h"
 #include "core/student_proxy.h"
 #include "sdk/natives/ue4_natives.h"
 #include "sdk/reflection/ue4_reflection.h"
 
+#include "shared/modules/mount_records.hpp"
 #include "shared/rpc/set_appearance.h"
 
 #include <core_modules.h>
@@ -24,6 +26,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 
 namespace {
     using namespace HogwartsMP::Core::UE4;
@@ -198,6 +201,51 @@ namespace {
         }
         return CallUFunction(comp, "SetAnimInstanceClass", &p);
     }
+
+    // The pawn's world velocity (UE cm/s) via the game's own getter — published while mounted so remotes
+    // can dead-reckon the broom.
+    Vec3f GetActorVelocity(void *actor) {
+        Vec3f v {};
+        CallUFunction(actor, "GetVelocity", &v);
+        return v;
+    }
+
+    // Whether an attach-parent class is a rideable mount. The one place to extend for other mounts; the
+    // matched class name is also the wire token (mapped to a mount-allowlist id) used to spawn the mount
+    // on remote clients.
+    bool IsMountClass(const std::string &className) {
+        return className.find("FlyingBroom") != std::string::npos;
+    }
+
+    // Whether the pawn is mounted. While riding, the game attaches the pawn to the mount actor — the
+    // attach parent's class is both the flag and the mount identity. On true, outName holds the mount
+    // class short name (NUL-terminated, capped).
+    bool DetectMount(void *pawn, char *outName, size_t cap) {
+        struct {
+            UObjectBase *ReturnValue;
+        } parent {};
+        CallUFunction(pawn, "GetAttachParentActor", &parent);
+        if (!parent.ReturnValue) {
+            return false;
+        }
+        const auto parentClass = narrow(parent.ReturnValue->GetClass()->GetFName());
+        if (!IsMountClass(parentClass)) {
+            return false;
+        }
+        std::strncpy(outName, parentClass.c_str(), cap - 1);
+        outName[cap - 1] = '\0';
+        return true;
+    }
+
+    // While mounted the rider is attached to the mount — the mount is the actor the sync drives.
+    AActor *SyncTarget(AActor *actor, int32_t actorIndex, AActor *broom, int32_t broomIndex, bool mounted) {
+        if (mounted) {
+            if (auto *b = AliveActor(broom, broomIndex)) {
+                return b;
+            }
+        }
+        return AliveActor(actor, actorIndex);
+    }
 } // namespace
 
 namespace HogwartsMP::Core::Modules {
@@ -271,9 +319,24 @@ namespace HogwartsMP::Core::Modules {
         position            = {worldLoc.X, worldLoc.Y, worldLoc.Z};
         rotation            = QuatFromRotator(GetActorRot(pc->Pawn));
 
-        // Publish in-air state (rides the DeltaSerializer to the server, then everyone) so remote proxies
-        // play the fall clip; the vertical arc itself comes from the synced position.
-        SetFlag(Shared::Modules::HumanSync::InAir, DetectInAir(pc->Pawn));
+        // Publish mount state (rides the DeltaSerializer to everyone): the Mounted flag + which broom as a
+        // 1-based allowlist id (0 = default/unknown). In-air is on-foot only — while mounted the broom
+        // owns the pose and flying reads as "falling".
+        char mountClass[64] = {};
+        const bool mounted  = DetectMount(pc->Pawn, mountClass, sizeof(mountClass));
+        SetFlag(Shared::Modules::HumanSync::Mounted, mounted);
+        data.mountId = mounted ? Shared::Modules::MountClassId(mountClass) : 0;
+        SetFlag(Shared::Modules::HumanSync::InAir, !mounted && DetectInAir(pc->Pawn));
+
+        // World velocity — only while mounted (remotes dead-reckon the broom from it; the on-foot snapshot
+        // path ignores it). Zeroed on foot so the value stops changing and its delta Field goes quiet.
+        if (mounted) {
+            const auto vel = GetActorVelocity(pc->Pawn);
+            velocity       = {vel.X, vel.Y, vel.Z};
+        }
+        else {
+            velocity = {0.f, 0.f, 0.f};
+        }
 
         // On a CacheCCD rebuild (pointer change — assumes HL reallocates it), harvest + send the look; the
         // content signature suppresses redundant sends.
@@ -309,7 +372,32 @@ namespace HogwartsMP::Core::Modules {
     }
 
     void ClientHuman::UpdateRemote(float) {
-        auto *target = AliveActor(_actor, _actorIndex);
+        // Mount/dismount transitions first (Mounted flag + data.mountId arrive via the DeltaSerializer):
+        // the sync target switches between the rider and the broom.
+        auto *rider = AliveActor(_actor, _actorIndex);
+        if (IsMounted() && !_mounted && rider) {
+            // Latch mounted *before* the spawn so a failed Mount() doesn't re-attempt (spawn + destroy a
+            // broom) every tick. If it fails, _broom stays null and SyncTarget falls back to the rider.
+            _mounted = true;
+            if (auto *broom = BroomRider::Mount(_actor, _mesh, Shared::Modules::MountClassName(data.mountId))) {
+                _broom      = broom;
+                _broomIndex = ObjectIndex(broom);
+            }
+            _interp.Reset(); // fresh leg toward the new target (the broom)
+        }
+        // Dismount on un-mount OR when the rider was GC'd while mounted (else the broom is orphaned).
+        else if (_mounted && (!IsMounted() || !rider)) {
+            BroomRider::Dismount(rider, rider ? _mesh : nullptr, AliveActor(_broom, _broomIndex));
+            _broom      = nullptr;
+            _broomIndex = -1;
+            _mounted    = false;
+            _interp.Reset();
+            // Re-assert on-foot locomotion: the broom mount swapped the mesh to single-node broom anims,
+            // so clear the gait latches (incl. the ABP assignment) and let UpdateGait re-take it.
+            _gaitApplied = _airApplied = _moveBlendApplied = _abpAssigned = false;
+        }
+
+        auto *target = SyncTarget(_actor, _actorIndex, _broom, _broomIndex, _mounted);
         if (!target) {
             return;
         }
@@ -327,14 +415,33 @@ namespace HogwartsMP::Core::Modules {
             _hasTarget     = true;
         }
 
-        // Every frame: place the proxy at the snapshot-interpolated transform, decay the speed if stalled,
-        // drive the gait. (Sampling/gait run every frame, not just on packet-arrival frames.) Render ~2
-        // packet intervals in the past so two snapshots always bracket the render time.
-        const float bufferMs = std::clamp(_intervalMs * 2.0f, 80.0f, 300.0f);
-        glm::vec3 rp;
-        glm::quat rr;
-        if (_interp.Sample(rp, rr, bufferMs)) {
-            TeleportActor(target, {rp.x, rp.y, rp.z}, RotatorFromQuat(rr));
+        // Place the proxy each frame. Mounted: DEAD-RECKON (extrapolate from pos + synced velocity) so the
+        // broom tracks ~now at flight speed instead of trailing ~bufferMs behind. On foot: snapshot
+        // interpolation (smooth + exact). Either way the attached rider follows the driven actor.
+        if (_mounted) {
+            // Dead-reckon, but clamp the extrapolation age so a stalled sender (lag spike) freezes the
+            // broom near its last point instead of flying it off along the stale velocity. KNOWN OFFSET:
+            // the rider re-attaches at the broom's seat socket, so it rides ~one socket-height above the
+            // synced point (the synced pos is the local rider's seat); small + cosmetic, tune via the seat
+            // seam if it reads wrong.
+            constexpr float kMaxExtrapMs = 250.f;
+            const float ageS             = std::min(static_cast<float>(GetUpdateAge()), kMaxExtrapMs) / 1000.f;
+            const glm::vec3 ep           = position + velocity * ageS;
+            // The broom mesh forward sits 90° off its actor yaw, so the pair flies "sideways" (facing
+            // radially out of a turn) if we apply the synced yaw raw. Offset the broom's yaw to align its
+            // visual forward with the travel direction; the attached rider follows. TUNE in-game.
+            constexpr float kBroomYawDeg = 90.f;
+            Rot3f br                     = RotatorFromQuat(rotation);
+            br.Yaw += kBroomYawDeg;
+            TeleportActor(target, {ep.x, ep.y, ep.z}, br);
+        }
+        else {
+            const float bufferMs = std::clamp(_intervalMs * 2.0f, 80.0f, 300.0f);
+            glm::vec3 rp;
+            glm::quat rr;
+            if (_interp.Sample(rp, rr, bufferMs)) {
+                TeleportActor(target, {rp.x, rp.y, rp.z}, RotatorFromQuat(rr));
+            }
         }
 
         // A stopped avatar sends no position packets (delta compression), so the last speed would stick and
@@ -348,9 +455,8 @@ namespace HogwartsMP::Core::Modules {
             _timeAccum      = 0.0f;
             _havePacketTime = false; // next packet is treated as the first — clean resume, no huge-dt sample
         }
-        // Gate anim driving until the async CCC body mesh is built (the position teleport above is safe
-        // pre-build; the graft / Speed writes are not).
-        if (ProxyReadyToDrive()) {
+        // Gait runs on foot only (the broom owns the mounted pose), and not before the async CCC mesh is built.
+        if (!_mounted && ProxyReadyToDrive()) {
             UpdateGait();
         }
     }
@@ -499,6 +605,10 @@ namespace HogwartsMP::Core::Modules {
             }
         }
         else {
+            // Tear the broom down first so it isn't orphaned when the proxy goes away.
+            if (_mounted) {
+                BroomRider::Dismount(AliveActor(_actor, _actorIndex), nullptr, AliveActor(_broom, _broomIndex));
+            }
             StudentProxy::DestroyProxy(AliveActor(_actor, _actorIndex));
             CcdWire::ForgetProxy(_ccc); // unroot the CCD we layered onto this proxy
         }
