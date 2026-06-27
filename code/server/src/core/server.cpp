@@ -7,6 +7,7 @@
 
 #include "shared/game/human.h"
 #include "shared/rpc/set_appearance.h"
+#include "shared/rpc/set_weather.h"
 
 #include <core_modules.h>
 #include <integrations/shared/rpc/emit_lua_event.h>
@@ -90,6 +91,16 @@ namespace HogwartsMP {
         SetPlayerIdentity(human->GetNetworkID(), data.hardwareID);
 
         BroadcastChatMessage(fmt::format("Player {} has joined the session!", data.nickname));
+
+        // Push the current environment state to ONLY the joiner so they sync on arrival.
+        // Existing players already match — broadcasting would needlessly re-stream the world
+        // (season foliage / time jump / weather) for everyone on every connect.
+        if (auto *peer = Framework::CoreModules::GetNetworkPeer()) {
+            Shared::RPC::SetWeather payload;
+            payload.data = GetWeather();
+            peer->SendRPC(payload, MafiaNet::ToGuid(human->ownerGUID));
+        }
+
         Scripting::Human::EventPlayerConnected(human->GetNetworkID());
     }
 
