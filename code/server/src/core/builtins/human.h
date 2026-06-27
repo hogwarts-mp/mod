@@ -37,6 +37,10 @@ namespace HogwartsMP::Scripting {
         // proxy plays the cast montage + fires the real spell at that vertical angle). For /castnpcs.
         void SetCasting(bool casting, double spellId, double aimPitch);
 
+        // Set/clear the Lumos wand-light state (relayed so the proxy attaches/removes the light + pose +
+        // tip FX). For the /lumosnpcs harness.
+        void SetLumos(bool on);
+
         // Emit a named event to this player's client scripts (Core.Events). payloadJson is sent as-is
         // and JSON.parsed on the client into the handler's single argument; pass JSON text.
         void Emit(std::string eventName, std::string payloadJson);

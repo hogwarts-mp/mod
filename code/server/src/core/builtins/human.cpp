@@ -223,6 +223,12 @@ namespace HogwartsMP::Scripting {
         }
     }
 
+    void Human::SetLumos(bool on) {
+        if (auto *e = ResolveHuman(GetId())) {
+            e->SetFlag(Shared::Modules::HumanSync::Lumos, on);
+        }
+    }
+
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
         auto it = _classes.find(isolate);
         if (it != _classes.end()) {
@@ -243,6 +249,7 @@ namespace HogwartsMP::Scripting {
             .function("setMounted", &Human::SetMounted)
             .function("setVelocity", &Human::SetVelocity)
             .function("setCasting", &Human::SetCasting)
+            .function("setLumos", &Human::SetLumos)
             .function("emit", &Human::Emit)
             .function("setData", &Human::SetData)
             .function("hasData", &Human::HasData)
