@@ -28,6 +28,11 @@ namespace HogwartsMP::Scripting {
         // clip). Used by the /walknpcs locomotion test harness; the vertical arc comes from position.
         void SetInAir(bool inAir);
 
+        // Set/clear the mounted state + broom allowlist id (relayed so the proxy spawns/destroys the
+        // broom). setVelocity feeds the client's mounted dead-reckoning. Both for the /broomnpcs harness.
+        void SetMounted(bool mounted, double mountId);
+        void SetVelocity(double x, double y, double z);
+
         // Emit a named event to this player's client scripts (Core.Events). payloadJson is sent as-is
         // and JSON.parsed on the client into the handler's single argument; pass JSON text.
         void Emit(std::string eventName, std::string payloadJson);

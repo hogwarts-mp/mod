@@ -200,6 +200,19 @@ namespace HogwartsMP::Scripting {
         }
     }
 
+    void Human::SetMounted(bool mounted, double mountId) {
+        if (auto *e = ResolveHuman(GetId())) {
+            e->SetFlag(Shared::Modules::HumanSync::Mounted, mounted);
+            e->data.mountId = mounted ? static_cast<uint8_t>(mountId) : 0;
+        }
+    }
+
+    void Human::SetVelocity(double x, double y, double z) {
+        if (auto *e = ResolveHuman(GetId())) {
+            e->velocity = {static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
+        }
+    }
+
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
         auto it = _classes.find(isolate);
         if (it != _classes.end()) {
@@ -217,6 +230,8 @@ namespace HogwartsMP::Scripting {
             .function("toString", &Human::ToString)
             .function("sendChat", &Human::SendChat)
             .function("setInAir", &Human::SetInAir)
+            .function("setMounted", &Human::SetMounted)
+            .function("setVelocity", &Human::SetVelocity)
             .function("emit", &Human::Emit)
             .function("setData", &Human::SetData)
             .function("hasData", &Human::HasData)

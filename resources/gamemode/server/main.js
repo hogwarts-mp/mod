@@ -77,6 +77,7 @@ const WEATHER_PRESETS = new Set([
 const npcs = [];
 const MAX_NPCS = 20;
 let npcWalkTimer = null;
+let npcBroomTimer = null;
 
 Events.on("playerConnect", (player) => {
     const visits = bumpVisitCount();
@@ -258,10 +259,54 @@ Events.on("chatCommand", (player, message, command, args) => {
             break;
         }
 
+        case "broomnpcs": {
+            if (npcBroomTimer) {
+                clearInterval(npcBroomTimer);
+                npcBroomTimer = null;
+                for (const npc of npcs) npc.setMounted(false, 0);
+                player.sendChat("[DEV] NPCs dismounted");
+                break;
+            }
+            if (npcs.length === 0) {
+                player.sendChat("[DEV] No NPCs to mount — use /spawnnpc first");
+                break;
+            }
+            // Mount each NPC on a broom (allowlist id 13 = MoonTrimmer) and orbit them fast + up in the air,
+            // setting the tangent velocity each tick so the client's mounted dead-reckoning has something to
+            // extrapolate (broom flight is driven by GetExtrapolatedPosition, not the snapshot buffer).
+            for (const npc of npcs) npc.setMounted(true, 13);
+            const c = player.position;
+            const center = { x: c.x, y: c.y, z: c.z };
+            const RADIUS = 800; // ~8 m
+            const DT = 0.05; // 50 ms tick, in seconds
+            const SPEED = 1500; // flight speed cm/s
+            let angle = 0;
+            npcBroomTimer = setInterval(() => {
+                angle += (SPEED / RADIUS) * DT; // linear -> angular
+                for (let i = 0; i < npcs.length; i++) {
+                    const a = angle + (i * 2 * Math.PI) / npcs.length;
+                    const pos = npcs[i].position;
+                    pos.set(center.x + Math.cos(a) * RADIUS, center.y + Math.sin(a) * RADIUS, center.z + 300);
+                    npcs[i].position = pos;
+                    const rot = npcs[i].rotation;
+                    rot.set(0, 0, (Math.atan2(Math.cos(a), -Math.sin(a)) * 180) / Math.PI);
+                    npcs[i].rotation = rot;
+                    // Orbit tangent velocity (cm/s): d/dt of the position above.
+                    npcs[i].setVelocity(-Math.sin(a) * SPEED, Math.cos(a) * SPEED, 0);
+                }
+            }, 50);
+            player.sendChat(`[DEV] ${npcs.length} NPC(s) on brooms, orbiting (run /broomnpcs again to dismount)`);
+            break;
+        }
+
         case "clearnpcs": {
             if (npcWalkTimer) {
                 clearInterval(npcWalkTimer);
                 npcWalkTimer = null;
+            }
+            if (npcBroomTimer) {
+                clearInterval(npcBroomTimer);
+                npcBroomTimer = null;
             }
             for (const npc of npcs) {
                 npc.destroy();
