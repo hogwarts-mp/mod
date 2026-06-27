@@ -28,6 +28,7 @@
 #include "shared/rpc/set_weather.h"
 
 #include "sdk/offsets/game/seasonchanger.h"
+#include "sdk/reflection/ue4_reflection.h"
 #include "shared/version.h"
 
 #include "../sdk/offsets/game/ulevel.h"
@@ -151,6 +152,10 @@ namespace HogwartsMP::Core {
             GetModuleFileNameW(selfModule, path, MAX_PATH);
             return std::filesystem::path(path).parent_path().string();
         }
+
+        // Defined further down (next to the env state it drives); forward-declared so PostUpdate
+        // can call it.
+        void ApplyEnvIfReady();
     } // namespace
 
     void Application::PostUpdate() {
@@ -196,6 +201,10 @@ namespace HogwartsMP::Core {
         // Drive replicated humans: push the local player's transform upstream and interpolate remote
         // proxies. No-op until replication is active.
         Core::Modules::Human::UpdateAll(_tickInterval);
+
+        // Apply any pending server env (time/season/weather) once the world is live — covers the
+        // on-join push arriving before the pawn/Scheduler exist. No-op when nothing is pending.
+        ApplyEnvIfReady();
 
         // HUD on the game thread (NOT an ImGui widget), above the local-player
         // early-returns so it also works in the menu.
@@ -316,22 +325,44 @@ namespace HogwartsMP::Core {
             default: return SDK::ESeasonEnum::Season_Summer;
             }
         }
+
+        // Cache the server env and apply once the world is live (ApplyEnvIfReady) — the SetWeather RPC
+        // (esp. the on-join push) can arrive before the pawn/Scheduler exist. g_envApplied latches until
+        // the next SetWeather; fine since env changes re-broadcast (reset on world teardown if levels transition).
+        Shared::WeatherState g_env;
+        bool g_hasEnv     = false;
+        bool g_envApplied = false;
+
+        // Apply the cached env once the pawn AND a live Scheduler exist, so time/season/weather
+        // land together. Cheap + no-op when nothing is pending (the common case).
+        void ApplyEnvIfReady() {
+            if (!g_hasEnv || g_envApplied) {
+                return;
+            }
+            auto *pawn = GetLiveLocalBiped();
+            if (!pawn || HogwartsMP::Core::UE4::FindInstancesOfClass("Class /Script/GameScheduler.Scheduler").empty()) {
+                return; // not in-world / world managers not up yet
+            }
+            SDK::SetCurrentTime(g_env.timeHour, g_env.timeMinute, 0);
+            SDK::SetSeason(MapSeason(g_env.season));
+            SDK::SetOverrideWeather(pawn, g_env.weather);
+            g_envApplied = true;
+        }
     } // namespace
 
     void Application::InitRPCs() {
         const auto net = GetNetworkingEngine()->GetNetworkClient();
 
-        // Server-authoritative environment: apply the broadcast time/season/weather to the
-        // game via reflection. Runs on the game thread (same as the appearance RPC below),
-        // which ProcessEvent requires.
+        // Server-authoritative environment. Cache it and apply on the next frame we're in-world
+        // (ApplyEnvIfReady, driven from Update) — the apply drives the game via reflection and
+        // needs live game objects that may not exist yet when this arrives (the on-join push).
         net->RegisterRPC<Shared::RPC::SetWeather>([this](const Shared::RPC::SetWeather &msg, MafiaNet::Packet *) {
             const auto &env = msg.data;
             Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Env sync -> {:02}:{:02}, season {}, weather '{}'", env.timeHour, env.timeMinute, env.season, env.weather);
 
-            SDK::SetCurrentTime(env.timeHour, env.timeMinute, 0);
-            SDK::SetSeason(MapSeason(env.season));
-            // Weather needs a world-context UObject; the local pawn works. Skips if not ready.
-            SDK::SetOverrideWeather(GetLiveLocalBiped(), env.weather);
+            g_env        = env;
+            g_hasEnv     = true;
+            g_envApplied = false; // re-apply this (new) state once in-world
         });
 
         // Live appearance change: store it on the replica and (re)dress the proxy.
