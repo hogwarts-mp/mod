@@ -26,6 +26,8 @@
 
 #include "shared/rpc/set_appearance.h"
 #include "shared/rpc/set_weather.h"
+
+#include "sdk/offsets/game/seasonchanger.h"
 #include "shared/version.h"
 
 #include "../sdk/offsets/game/ulevel.h"
@@ -302,12 +304,34 @@ namespace HogwartsMP::Core {
         return local ? local->GetNetworkID() : 0;
     }
 
+    namespace {
+        // Wire SeasonKind {Spring=0,Summer=1,Autumn=2,Winter=3} -> the game's ESeasonEnum
+        // {Invalid=0,Fall=1,Winter=2,Spring=3,Summer=4}. Different ordering — map, don't cast.
+        SDK::ESeasonEnum MapSeason(uint8_t kind) {
+            switch (kind) {
+            case Shared::SEASON_SPRING: return SDK::ESeasonEnum::Season_Spring;
+            case Shared::SEASON_SUMMER: return SDK::ESeasonEnum::Season_Summer;
+            case Shared::SEASON_AUTUMN: return SDK::ESeasonEnum::Season_Fall;
+            case Shared::SEASON_WINTER: return SDK::ESeasonEnum::Season_Winter;
+            default: return SDK::ESeasonEnum::Season_Summer;
+            }
+        }
+    } // namespace
+
     void Application::InitRPCs() {
         const auto net = GetNetworkingEngine()->GetNetworkClient();
 
+        // Server-authoritative environment: apply the broadcast time/season/weather to the
+        // game via reflection. Runs on the game thread (same as the appearance RPC below),
+        // which ProcessEvent requires.
         net->RegisterRPC<Shared::RPC::SetWeather>([this](const Shared::RPC::SetWeather &msg, MafiaNet::Packet *) {
-            // TODO: apply the environment state to the game (season/time/weather).
-            Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Sync Weather! ({}, season {})", msg.data.weather, msg.data.season);
+            const auto &env = msg.data;
+            Framework::Logging::GetLogger(FRAMEWORK_INNER_CLIENT)->info("Env sync -> {:02}:{:02}, season {}, weather '{}'", env.timeHour, env.timeMinute, env.season, env.weather);
+
+            SDK::SetCurrentTime(env.timeHour, env.timeMinute, 0);
+            SDK::SetSeason(MapSeason(env.season));
+            // Weather needs a world-context UObject; the local pawn works. Skips if not ready.
+            SDK::SetOverrideWeather(GetLiveLocalBiped(), env.weather);
         });
 
         // Live appearance change: store it on the replica and (re)dress the proxy.
