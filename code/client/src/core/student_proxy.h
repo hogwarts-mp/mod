@@ -27,7 +27,9 @@ namespace HogwartsMP::Core::StudentProxy {
     UObjectBase *FirstActiveSkin();
 
     // Spawn a remote-avatar proxy (BP_RemoteAvatarCCC from the pak). outCcc receives the proxy's
-    // CustomizableCharacterComponent so the caller can apply the player's CCD (see CcdWire). Game thread only.
-    AActor *SpawnProxy(float x, float y, float z, float yawDeg, UObjectBase **outCcc);
+    // CustomizableCharacterComponent so the caller can apply the player's CCD (see CcdWire); outMesh
+    // (optional) receives CharacterMesh0, the body skeletal mesh used as the locomotion anim target.
+    // Game thread only.
+    AActor *SpawnProxy(float x, float y, float z, float yawDeg, UObjectBase **outCcc, UObjectBase **outMesh = nullptr);
     void DestroyProxy(AActor *actor);
 } // namespace HogwartsMP::Core::StudentProxy

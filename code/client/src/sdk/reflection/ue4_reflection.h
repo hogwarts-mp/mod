@@ -101,4 +101,17 @@ namespace HogwartsMP::Core::UE4 {
 
     // True if cls or any superclass has the given short name.
     bool IsSubclassOf(UClass *cls, const char *baseName);
+
+    // ── Animation playback (proxy locomotion / mount poses) ──────────────────
+    // Load an AnimSequence by path, cached (negatives cached too — a missing asset won't reload-spam).
+    UObjectBase *LoadAnimSequence(const wchar_t *path);
+    // Load any AnimationAsset (AnimSequence / BlendSpace / BlendSpace1D) by path, cached.
+    UObjectBase *LoadAnimAsset(const wchar_t *path);
+    // Play an anim asset single-node on a skeletal mesh, crossfading from the current pose over
+    // blendInSec (vs PlayAnimation's instant swap). Returns true if the blended path was taken; falls
+    // back to an instant PlayAnimation if no instance exists yet / SetAnimationAsset isn't reflected.
+    bool PlayAnimBlended(UObjectBase *skin, UObjectBase *asset, bool loop, float blendInSec);
+    // Set a single-node blendspace's input coordinate (X = speed for the 1D move space). Returns false
+    // if the mesh has no single-node instance or SetBlendSpaceInput isn't reflected in this build.
+    bool SetBlendSpaceInputOnSkin(UObjectBase *skin, float x, float y);
 } // namespace HogwartsMP::Core::UE4
