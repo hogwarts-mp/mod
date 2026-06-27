@@ -439,4 +439,31 @@ namespace HogwartsMP::Core::UE4 {
         } in {x, y, 0.f}; // FVector InBlendInput (UE4.27 floats)
         return CallUFunction(inst, "SetBlendSpaceInput", &in);
     }
+
+    bool PlaySlotMontageOnSkin(UObjectBase *skin, UObjectBase *asset, const wchar_t *slotName,
+                               float blendIn, float blendOut, float playRate) {
+        if (!skin || !asset) {
+            return false;
+        }
+        // The slot lives on the component's running AnimBlueprint instance (not the component).
+        auto *inst = ReadObjectProperty(skin, "AnimScriptInstance");
+        if (!inst) {
+            return false;
+        }
+        // UAnimInstance::PlaySlotAnimationAsDynamicMontage(Asset, SlotNodeName, BlendIn, BlendOut,
+        // PlayRate, LoopCount, BlendOutTriggerTime, InTimeToStartMontageAt) -> UAnimMontage*. LoopCount 1 = once.
+        struct {
+            UObjectBase *Asset;
+            FName SlotNodeName;
+            float BlendInTime;
+            float BlendOutTime;
+            float InPlayRate;
+            int32_t LoopCount;
+            float BlendOutTriggerTime;
+            float InTimeToStartMontageAt;
+            UObjectBase *ReturnValue;
+        } p {asset, MakeFName(slotName), blendIn, blendOut, playRate, 1, -1.0f, 0.0f, nullptr};
+        CallUFunction(inst, "PlaySlotAnimationAsDynamicMontage", &p);
+        return p.ReturnValue != nullptr;
+    }
 } // namespace HogwartsMP::Core::UE4

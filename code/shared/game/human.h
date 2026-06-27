@@ -39,6 +39,9 @@ namespace HogwartsMP::Shared {
         bool IsMounted() const {
             return (stateFlags & Modules::HumanSync::Mounted) != 0;
         }
+        bool IsCasting() const {
+            return (stateFlags & Modules::HumanSync::Cast) != 0;
+        }
         void SetFlag(Modules::HumanSync::StateFlag flag, bool on) {
             stateFlags = on ? (stateFlags | flag) : (stateFlags & ~flag);
         }

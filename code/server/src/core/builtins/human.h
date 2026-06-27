@@ -33,6 +33,10 @@ namespace HogwartsMP::Scripting {
         void SetMounted(bool mounted, double mountId);
         void SetVelocity(double x, double y, double z);
 
+        // Set/clear the casting state + spell allowlist id + aim pitch (deg, clamped ±90; relayed so the
+        // proxy plays the cast montage + fires the real spell at that vertical angle). For /castnpcs.
+        void SetCasting(bool casting, double spellId, double aimPitch);
+
         // Emit a named event to this player's client scripts (Core.Events). payloadJson is sent as-is
         // and JSON.parsed on the client into the handler's single argument; pass JSON text.
         void Emit(std::string eventName, std::string payloadJson);
