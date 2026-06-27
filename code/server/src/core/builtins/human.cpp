@@ -194,6 +194,12 @@ namespace HogwartsMP::Scripting {
         peer->BroadcastRPC(upd);
     }
 
+    void Human::SetInAir(bool inAir) {
+        if (auto *e = ResolveHuman(GetId())) {
+            e->SetFlag(Shared::Modules::HumanSync::InAir, inAir);
+        }
+    }
+
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
         auto it = _classes.find(isolate);
         if (it != _classes.end()) {
@@ -210,6 +216,7 @@ namespace HogwartsMP::Scripting {
             .ctor<uint64_t>()
             .function("toString", &Human::ToString)
             .function("sendChat", &Human::SendChat)
+            .function("setInAir", &Human::SetInAir)
             .function("emit", &Human::Emit)
             .function("setData", &Human::SetData)
             .function("hasData", &Human::HasData)
