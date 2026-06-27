@@ -29,14 +29,15 @@ namespace HogwartsMP::LauncherUI {
 
         if (action == "connect") {
             const std::string address = j.value("address", "");
-            if (GameLaunch::ConnectAndLaunch(address)) {
+            // Record the choice + arm the launch, then close the window. The actual pak
+            // fetch + inject + game start runs from main() after CEF tears down.
+            if (GameLaunch::PrepareConnect(address)) {
                 callback->Success("ok");
-                // Game is launching — close the launcher.
                 if (CefRefPtr<CefWindow> window = WindowFor(browser)) {
                     window->Close();
                 }
             } else {
-                callback->Failure(1, "Failed to launch the game");
+                callback->Failure(1, "Invalid server address");
             }
             return true;
         }

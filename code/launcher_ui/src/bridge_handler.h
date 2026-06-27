@@ -4,8 +4,8 @@
  * Receives window.cefQuery requests from the React UI (see web/src/bridge.ts) as JSON
  * { "action": "connect", "address": "host:port" } or
  * { "action": "window", "op": "minimize"|"maximize"|"close" }
- * and acts on them: connect writes the connect-config + spawns the game injector then
- * closes the launcher; window ops drive the CefWindow.
+ * and acts on them: connect writes the connect-config + arms the launch then closes the
+ * launcher (the game start runs from main after CEF shuts down); window ops drive the CefWindow.
  */
 
 #pragma once
