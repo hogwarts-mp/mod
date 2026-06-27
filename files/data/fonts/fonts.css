@@ -1,0 +1,8 @@
+/* Self-hosted UI fonts (latin subset), served locally over hmp://app/local/fonts/ so the
+   launcher renders faithfully with no third-party (Google Fonts) call. Cinzel is a variable
+   font (one file spans 400-700); Spectral ships static weights. */
+@font-face{font-family:'Cinzel';font-style:normal;font-weight:400 700;font-display:swap;src:url('/local/fonts/Cinzel.woff2') format('woff2');}
+@font-face{font-family:'Spectral';font-style:normal;font-weight:300;font-display:swap;src:url('/local/fonts/Spectral-300.woff2') format('woff2');}
+@font-face{font-family:'Spectral';font-style:normal;font-weight:400;font-display:swap;src:url('/local/fonts/Spectral-400.woff2') format('woff2');}
+@font-face{font-family:'Spectral';font-style:normal;font-weight:500;font-display:swap;src:url('/local/fonts/Spectral-500.woff2') format('woff2');}
+@font-face{font-family:'Spectral';font-style:normal;font-weight:600;font-display:swap;src:url('/local/fonts/Spectral-600.woff2') format('woff2');}

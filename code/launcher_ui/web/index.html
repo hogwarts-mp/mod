@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HogwartsMP</title>
+
+<!-- HogwartsMP launcher UI (React + TypeScript + Vite). Served by the CEF host; buttons +
+     window controls call native via src/bridge.ts (no-op in a plain browser). -->
+
+<!-- Self-hosted Cinzel/Spectral, served by the CEF host from files/data/fonts over
+     hmp://app/local/. No Google Fonts call: renders faithfully offline and never depends
+     on a third-party CDN. (A plain-browser preview without the host falls back to serif —
+     the real launcher serves these locally.) -->
+<link href="/local/fonts/fonts.css" rel="stylesheet">
+
+<style>
+  html, body { margin: 0; height: 100%; }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /* The page centers the fixed 1280x840 window and scrolls if the host is smaller
+     (in the real launcher the OS window IS that size). */
+  body {
+    background: radial-gradient(900px 600px at 50% 18%, rgba(201,162,90,.06), rgba(0,0,0,0) 60%), #0a0805;
+    font-family: 'Spectral', Georgia, serif;
+    color: #e7d8b4;
+  }
+
+  /* Interaction affordances the handoff expressed via style-hover. */
+  .hmp-row { transition: background .08s ease; }
+  .hmp-row:hover { background: rgba(201,162,90,.05) !important; }
+  .hmp-btn-primary { transition: filter .08s ease; }
+  .hmp-btn-primary:hover { filter: brightness(1.08); }
+  .hmp-btn-ghost { transition: border-color .08s ease, color .08s ease; }
+  .hmp-btn-ghost:hover { border-color: rgba(201,162,90,.45); color: #e7d8b4; }
+  .hmp-nav { transition: background .08s ease; }
+  .hmp-win-btn { transition: color .08s ease; }
+  .hmp-win-btn:hover { color: #d8b56b; }
+
+  .hmp-input { border: none; outline: none; background: transparent; color: #d5c8a9; font: inherit; width: 100%; }
+  .hmp-input::placeholder { color: #6f6553; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(201,162,90,.18); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
