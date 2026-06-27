@@ -30,6 +30,12 @@ namespace HogwartsMP::Core::UE4 {
     // same class). Uncached — full GUObjectArray scan each call. Game thread only.
     std::vector<UObjectBase *> FindUObjects(const char *objFullName);
 
+    // Live INSTANCES whose class is exactly `classFullName` ("Class /Script/..."), skipping
+    // the class object and the CDO. Use this (not FindUObjects, which matches by name and only
+    // returns the class object) to call instance methods like Scheduler.SetCurrentTime —
+    // ProcessEvent on the CDO derefs uninitialized instance fields and crashes.
+    std::vector<UObjectBase *> FindInstancesOfClass(const char *classFullName);
+
     // Equivalent of UE4SS's GetFunctionByNameInChain: walk the class hierarchy
     // looking for a UFunction by short name. Avoids hardcoding declaring
     // classes for every engine function. Positive results are cached per
@@ -103,6 +109,20 @@ namespace HogwartsMP::Core::UE4 {
 
     // True if cls or any superclass has the given short name.
     bool IsSubclassOf(UClass *cls, const char *baseName);
+
+    // Debug: log a UFunction's parameter layout — ParmsSize/NumParms then each param's
+    // name, type, offset, size and flags. Lets us build a correct ProcessEvent param
+    // struct instead of guessing. No-op (logs "NOT FOUND") if the path doesn't resolve.
+    void DumpFunctionSignature(const char *functionFullName);
+
+    // Debug: log the full path of every object of a class (so CDOs/Default__ instances are
+    // visible) — calling gameplay UFunctions on a CDO crashes, so we need to spot them.
+    void DumpObjects(const char *classFullName);
+
+    // Debug: log every live object whose class CHAIN derives from `classFullName` (catches
+    // Blueprint/native subclasses that exact-name/exact-class matching misses), with its actual
+    // class and path. Use to locate a manager whose real instance is a subclass.
+    void DumpInstancesBySubclass(const char *classFullName);
 
     // ── Animation playback (proxy locomotion / mount poses) ──────────────────
     // Load an AnimSequence by path, cached (negatives cached too — a missing asset won't reload-spam).

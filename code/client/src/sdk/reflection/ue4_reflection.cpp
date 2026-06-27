@@ -73,6 +73,30 @@ namespace HogwartsMP::Core::UE4 {
         return objects;
     }
 
+    std::vector<UObjectBase *> FindInstancesOfClass(const char *classFullName) {
+        std::vector<UObjectBase *> instances{};
+        UClass *target = FindUClass(classFullName);
+        if (!target) {
+            return instances;
+        }
+        auto *classObj = static_cast<UObjectBase *>(target);
+        for (auto i = 0; i < GObjectArray->GetObjectArrayNum(); ++i) {
+            auto *item = GObjectArray->IndexToObject(i);
+            if (!item) {
+                continue;
+            }
+            auto *obj = item->Object;
+            if (!obj || obj == classObj || obj->GetClass() != target) {
+                continue; // skip the class object itself; exact-class match only
+            }
+            if (narrow(obj->GetFName()).rfind("Default__", 0) == 0) {
+                continue; // skip the class default object (CDO)
+            }
+            instances.push_back(obj);
+        }
+        return instances;
+    }
+
     UFunction *FindFunctionInChain(UObjectBase *obj, const char *name) {
         // Cache positive results only: a lookup that failed once (e.g. before
         // the class was fully loaded) must stay retryable. Keyed per class so
@@ -373,6 +397,68 @@ namespace HogwartsMP::Core::UE4 {
             }
         }
         return false;
+    }
+
+    void DumpFunctionSignature(const char *functionFullName) {
+        UFunction *fn = FindUFunction(functionFullName);
+        if (!fn) {
+            Log()->warn("[sig] {} -> NOT FOUND", functionFullName);
+            return;
+        }
+        Log()->info("[sig] {} ParmsSize={} NumParms={}", functionFullName, fn->ParmsSize, static_cast<int>(fn->NumParms));
+        for (FField *p = fn->ChildProperties; p; p = p->Next) {
+            auto *prop = static_cast<FProperty *>(p);
+            Log()->info("   {} : {} off={} size={} flags=0x{:x}", narrow(prop->GetFName()), narrow(prop->GetClass()->GetFName()),
+                prop->GetOffset_ForInternal(), prop->ElementSize, static_cast<uint64_t>(prop->PropertyFlags));
+        }
+    }
+
+    void DumpObjects(const char *classFullName) {
+        auto objs = FindUObjects(classFullName);
+        Log()->info("[obj] {} -> {} instance(s)", classFullName, objs.size());
+        for (auto *o : objs) {
+            Log()->info("   {}", AssetPath(o));
+        }
+    }
+
+    void DumpInstancesBySubclass(const char *classFullName) {
+        UClass *target = FindUClass(classFullName);
+        if (!target) {
+            Log()->warn("[sub] {} -> class NOT FOUND", classFullName);
+            return;
+        }
+        auto *targetStruct = static_cast<UStruct *>(target);
+        auto *classObj     = static_cast<UObjectBase *>(target);
+        int count          = 0;
+        for (auto i = 0; i < GObjectArray->GetObjectArrayNum(); ++i) {
+            auto *item = GObjectArray->IndexToObject(i);
+            if (!item) {
+                continue;
+            }
+            auto *obj = item->Object;
+            if (!obj || obj == classObj) {
+                continue;
+            }
+            bool match = false;
+            for (UStruct *s = obj->GetClass(); s; s = s->GetSuperStruct()) { // pointer-walk: no per-object narrow()
+                if (s == targetStruct) {
+                    match = true;
+                    break;
+                }
+            }
+            if (!match) {
+                continue;
+            }
+            const std::string nm = narrow(obj->GetFName());
+            if (nm.rfind("Default__", 0) == 0) {
+                continue; // skip CDOs
+            }
+            Log()->info("[sub] {} : class {} : {}", nm, narrow(obj->GetClass()->GetFName()), AssetPath(obj));
+            if (++count >= 40) {
+                break;
+            }
+        }
+        Log()->info("[sub] {} -> {} subclass instance(s)", classFullName, count);
     }
 
     UObjectBase *LoadAnimSequence(const wchar_t *path) {
