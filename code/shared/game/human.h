@@ -45,6 +45,9 @@ namespace HogwartsMP::Shared {
         bool IsLumos() const {
             return (stateFlags & Modules::HumanSync::Lumos) != 0;
         }
+        bool IsDodging() const {
+            return (stateFlags & Modules::HumanSync::Dodge) != 0;
+        }
         void SetFlag(Modules::HumanSync::StateFlag flag, bool on) {
             stateFlags = on ? (stateFlags | flag) : (stateFlags & ~flag);
         }

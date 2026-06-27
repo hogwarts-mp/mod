@@ -229,6 +229,12 @@ namespace HogwartsMP::Scripting {
         }
     }
 
+    void Human::SetDodging(bool on) {
+        if (auto *e = ResolveHuman(GetId())) {
+            e->SetFlag(Shared::Modules::HumanSync::Dodge, on);
+        }
+    }
+
     v8pp::class_<Human> &Human::GetClass(v8::Isolate *isolate) {
         auto it = _classes.find(isolate);
         if (it != _classes.end()) {
@@ -250,6 +256,7 @@ namespace HogwartsMP::Scripting {
             .function("setVelocity", &Human::SetVelocity)
             .function("setCasting", &Human::SetCasting)
             .function("setLumos", &Human::SetLumos)
+            .function("setDodging", &Human::SetDodging)
             .function("emit", &Human::Emit)
             .function("setData", &Human::SetData)
             .function("hasData", &Human::HasData)

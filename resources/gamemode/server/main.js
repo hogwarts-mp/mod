@@ -80,6 +80,7 @@ let npcWalkTimer = null;
 let npcBroomTimer = null;
 let npcCastTimer = null;
 let npcLumosOn = false;
+let npcDodgeTimer = null;
 
 Events.on("playerConnect", (player) => {
     const visits = bumpVisitCount();
@@ -339,8 +340,34 @@ Events.on("chatCommand", (player, message, command, args) => {
             break;
         }
 
+        case "dodgenpcs": {
+            if (npcDodgeTimer) {
+                clearInterval(npcDodgeTimer);
+                npcDodgeTimer = null;
+                for (const npc of npcs) npc.setDodging(false);
+                player.sendChat("[DEV] NPC dodging stopped");
+                break;
+            }
+            if (npcs.length === 0) {
+                player.sendChat("[DEV] No NPCs to dodge — use /spawnnpc first");
+                break;
+            }
+            // Toggle the Dodge flag each second — each rising edge plays the roll montage on the proxy.
+            let dodging = false;
+            npcDodgeTimer = setInterval(() => {
+                dodging = !dodging;
+                for (const npc of npcs) npc.setDodging(dodging);
+            }, 1000);
+            player.sendChat(`[DEV] ${npcs.length} NPC(s) dodge-rolling on a loop (run /dodgenpcs again to stop)`);
+            break;
+        }
+
         case "clearnpcs": {
             npcLumosOn = false;
+            if (npcDodgeTimer) {
+                clearInterval(npcDodgeTimer);
+                npcDodgeTimer = null;
+            }
             if (npcWalkTimer) {
                 clearInterval(npcWalkTimer);
                 npcWalkTimer = null;

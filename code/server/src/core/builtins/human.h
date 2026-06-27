@@ -41,6 +41,9 @@ namespace HogwartsMP::Scripting {
         // tip FX). For the /lumosnpcs harness.
         void SetLumos(bool on);
 
+        // Set/clear the dodge-roll state (relayed so the proxy plays its roll montage). For /dodgenpcs.
+        void SetDodging(bool on);
+
         // Emit a named event to this player's client scripts (Core.Events). payloadJson is sent as-is
         // and JSON.parsed on the client into the handler's single argument; pass JSON text.
         void Emit(std::string eventName, std::string payloadJson);

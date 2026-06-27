@@ -55,6 +55,8 @@ namespace HogwartsMP::Core::Modules {
         // + wand-tip FX when it rises, remove them when it falls.
         void UpdateLumos();
         void DestroyLumosLight();
+        // Proxy dodge-roll: play the roll montage on the synced Dodge flag's rising edge.
+        void UpdateDodge();
 
         bool _isLocal = false;
 
@@ -110,8 +112,9 @@ namespace HogwartsMP::Core::Modules {
         bool _havePacketTime = false;
         bool _abpTickInit    = false;
 
-        // Last-seen synced Cast flag, for the rising-edge cast trigger.
-        bool _castLast = false;
+        // Last-seen synced Cast/Dodge flags, for the rising-edge montage triggers.
+        bool _castLast  = false;
+        bool _dodgeLast = false;
 
         // Lumos: edge-triggered on the held flag. The attached warm light + its GC guard, the held arm-up
         // montage (to stop on release), and the wand-tip FX components (to deactivate on release).
