@@ -9,6 +9,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <utility>
+#include <vector>
 
 class AActor;
 class UObjectBase;
@@ -49,6 +51,10 @@ namespace HogwartsMP::Core::Modules {
         // Proxy spell cast: on the synced Cast flag's rising edge, play the cast montage + fire the real
         // spell (VFX) from the proxy, aimed by synced facing-yaw + aimPitch.
         void UpdateCast();
+        // Proxy Lumos: edge-triggered on the held Lumos flag — attach a warm wand light + arm-up hold pose
+        // + wand-tip FX when it rises, remove them when it falls.
+        void UpdateLumos();
+        void DestroyLumosLight();
 
         bool _isLocal = false;
 
@@ -106,6 +112,16 @@ namespace HogwartsMP::Core::Modules {
 
         // Last-seen synced Cast flag, for the rising-edge cast trigger.
         bool _castLast = false;
+
+        // Lumos: edge-triggered on the held flag. The attached warm light + its GC guard, the held arm-up
+        // montage (to stop on release), and the wand-tip FX components (to deactivate on release).
+        bool _lumosLast          = false;
+        AActor *_lumosLight      = nullptr;
+        int32_t _lumosLightIndex = -1;
+        UObjectBase *_lumosHold  = nullptr;
+        // Wand-tip FX components, each with its GUObjectArray index so a collected one is skipped instead
+        // of dereferenced (same weak-ref discipline as _lumosLight / _wand).
+        std::vector<std::pair<UObjectBase *, int32_t>> _lumosVfx;
 
         // Local-player appearance send state: the CacheCCD pointer last harvested (rebuild detection) and
         // the content signature last sent (change detection).

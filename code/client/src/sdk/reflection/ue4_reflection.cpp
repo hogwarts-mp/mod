@@ -466,4 +466,46 @@ namespace HogwartsMP::Core::UE4 {
         CallUFunction(inst, "PlaySlotAnimationAsDynamicMontage", &p);
         return p.ReturnValue != nullptr;
     }
+
+    UObjectBase *PlaySlotMontageLooping(UObjectBase *skin, UObjectBase *asset, const wchar_t *slotName,
+                                        float blendIn, float blendOut) {
+        if (!skin || !asset) {
+            return nullptr;
+        }
+        auto *inst = ReadObjectProperty(skin, "AnimScriptInstance");
+        if (!inst) {
+            return nullptr;
+        }
+        // Same as PlaySlotMontageOnSkin but a huge LoopCount so the clip HOLDS open-ended; returns the
+        // transient montage so the caller can Montage_Stop it on release.
+        struct {
+            UObjectBase *Asset;
+            FName SlotNodeName;
+            float BlendInTime;
+            float BlendOutTime;
+            float InPlayRate;
+            int32_t LoopCount;
+            float BlendOutTriggerTime;
+            float InTimeToStartMontageAt;
+            UObjectBase *ReturnValue;
+        } p {asset, MakeFName(slotName), blendIn, blendOut, 1.0f, 1000000, -1.0f, 0.0f, nullptr};
+        CallUFunction(inst, "PlaySlotAnimationAsDynamicMontage", &p);
+        return p.ReturnValue;
+    }
+
+    bool StopMontageOnSkin(UObjectBase *skin, UObjectBase *montage, float blendOut) {
+        if (!skin) {
+            return false;
+        }
+        auto *inst = ReadObjectProperty(skin, "AnimScriptInstance");
+        if (!inst) {
+            return false;
+        }
+        // UAnimInstance::Montage_Stop(float InBlendOutTime, const UAnimMontage* Montage=null).
+        struct {
+            float BlendOutTime;
+            UObjectBase *Montage;
+        } p {blendOut, montage};
+        return CallUFunction(inst, "Montage_Stop", &p);
+    }
 } // namespace HogwartsMP::Core::UE4

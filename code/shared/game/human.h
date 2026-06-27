@@ -42,6 +42,9 @@ namespace HogwartsMP::Shared {
         bool IsCasting() const {
             return (stateFlags & Modules::HumanSync::Cast) != 0;
         }
+        bool IsLumos() const {
+            return (stateFlags & Modules::HumanSync::Lumos) != 0;
+        }
         void SetFlag(Modules::HumanSync::StateFlag flag, bool on) {
             stateFlags = on ? (stateFlags | flag) : (stateFlags & ~flag);
         }
