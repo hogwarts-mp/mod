@@ -79,6 +79,7 @@ const MAX_NPCS = 20;
 let npcWalkTimer = null;
 let npcBroomTimer = null;
 let npcCastTimer = null;
+let npcLumosOn = false;
 
 Events.on("playerConnect", (player) => {
     const visits = bumpVisitCount();
@@ -327,7 +328,19 @@ Events.on("chatCommand", (player, message, command, args) => {
             break;
         }
 
+        case "lumosnpcs": {
+            if (npcs.length === 0) {
+                player.sendChat("[DEV] No NPCs — use /spawnnpc first");
+                break;
+            }
+            npcLumosOn = !npcLumosOn; // sustained state — toggle the wand light on all NPCs
+            for (const npc of npcs) npc.setLumos(npcLumosOn);
+            player.sendChat(`[DEV] NPC Lumos ${npcLumosOn ? "ON" : "OFF"}`);
+            break;
+        }
+
         case "clearnpcs": {
+            npcLumosOn = false;
             if (npcWalkTimer) {
                 clearInterval(npcWalkTimer);
                 npcWalkTimer = null;

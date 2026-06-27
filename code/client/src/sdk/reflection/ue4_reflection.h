@@ -122,4 +122,10 @@ namespace HogwartsMP::Core::UE4 {
     // there's no AnimBP instance or the montage didn't start.
     bool PlaySlotMontageOnSkin(UObjectBase *skin, UObjectBase *asset, const wchar_t *slotName,
                                float blendIn = 0.25f, float blendOut = 0.25f, float playRate = 1.0f);
+    // Like PlaySlotMontageOnSkin but loops for an open-ended held state (e.g. the Lumos arm-up pose).
+    // Returns the transient montage so the caller can Montage_Stop it on release (null on failure).
+    UObjectBase *PlaySlotMontageLooping(UObjectBase *skin, UObjectBase *asset, const wchar_t *slotName,
+                                        float blendIn = 0.25f, float blendOut = 0.25f);
+    // Stop a specific montage on the mesh's AnimBP instance (blends out the slot). Null montage stops all.
+    bool StopMontageOnSkin(UObjectBase *skin, UObjectBase *montage, float blendOut = 0.25f);
 } // namespace HogwartsMP::Core::UE4

@@ -28,7 +28,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <map>
 #include <string>
+#include <vector>
 
 namespace {
     using namespace HogwartsMP::Core::UE4;
@@ -522,6 +524,172 @@ namespace {
         }
         CallUFunction(helper, "CastSpell", buf);
     }
+
+    // Whether the local player's wand light (Lumos) is ON. The active tool stays the Lumos tool after the
+    // light toggles off, so the on/off state is LumosSpellTool::IsLumosActive — not "is the Lumos tool
+    // active". False when the active tool isn't a LumosSpellTool (the function is absent).
+    bool DetectLumos(void *pawn) {
+        auto *tool = ActiveSpellTool(pawn);
+        if (!tool || !FindFunctionInChain(tool, "IsLumosActive")) {
+            return false;
+        }
+        struct {
+            bool ReturnValue;
+        } r {false};
+        CallUFunction(tool, "IsLumosActive", &r);
+        return r.ReturnValue;
+    }
+
+    // Spawn a warm point light + attach it to the proxy so a remote player's Lumos lights the scene. We
+    // can't drive HL's LumosSpellTool on a proxy, so we approximate the wand glow with a PointLight at the
+    // wand tip (MuzzleSocket), falling back to the hand socket, then the proxy root.
+    AActor *SpawnLumosLight(AActor *proxy, AActor *wand, UObjectBase *mesh) {
+        if (!proxy || !GWorld || !*GWorld || !UWorld__SpawnActor) {
+            return nullptr;
+        }
+        static auto *lightCls = FindUClass("Class /Script/Engine.PointLight");
+        if (!lightCls) {
+            return nullptr;
+        }
+        const Vec3f loc = GetActorPos(proxy);
+        FVector pos {loc.X, loc.Y, loc.Z + 120.f};
+        FRotator rot {0.f, 0.f, 0.f};
+        FActorSpawnParameters params {};
+        params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        auto *light = UWorld__SpawnActor(*GWorld, lightCls, &pos, &rot, params);
+        if (!light) {
+            return nullptr;
+        }
+        struct AttachActor {
+            UObjectBase *Parent;
+            FName SocketName;
+            uint8_t LocationRule;      // 2 = SnapToTarget
+            uint8_t RotationRule;      // 2
+            uint8_t ScaleRule;         // 1 = KeepWorld
+            bool bWeldSimulatedBodies; // false
+        };
+        if (wand) {
+            AttachActor att {reinterpret_cast<UObjectBase *>(wand), MakeFName(L"MuzzleSocket"), 2, 2, 1, false};
+            CallUFunction(light, "K2_AttachToActor", &att);
+        }
+        else if (mesh) {
+            AttachActor att {mesh, MakeFName(L"WandSocket"), 2, 2, 1, false};
+            CallUFunction(light, "K2_AttachToComponent", &att);
+        }
+        else {
+            AttachActor att {reinterpret_cast<UObjectBase *>(proxy), MakeFName(L""), 2, 2, 1, false};
+            CallUFunction(light, "K2_AttachToActor", &att);
+        }
+        // Tune the PointLightComponent into a soft warm wand glow (any setter not reflected just no-ops).
+        static auto *plcCls = FindUClass("Class /Script/Engine.PointLightComponent");
+        struct {
+            UClass *ComponentClass;
+            UObjectBase *ReturnValue;
+        } getComp {plcCls, nullptr};
+        CallUFunction(light, "GetComponentByClass", &getComp);
+        if (auto *comp = getComp.ReturnValue) {
+            struct {
+                float v;
+            } intensity {6000.f};
+            CallUFunction(comp, "SetIntensity", &intensity);
+            struct {
+                float v;
+            } radius {1800.f}; // ~18 m falloff
+            CallUFunction(comp, "SetAttenuationRadius", &radius);
+            struct {
+                float R, G, B, A;
+            } color {1.0f, 0.85f, 0.6f, 1.0f}; // warm white
+            CallUFunction(comp, "SetLightColor", &color);
+        }
+        return light;
+    }
+
+    // A BlueprintFunctionLibrary CDO by class name (GameplayStatics / NiagaraFunctionLibrary) for its
+    // static FX-spawn helpers. Cached per name.
+    UObjectBase *FindLibraryCDO(const char *className) {
+        static std::map<std::string, UObjectBase *> cache;
+        if (auto it = cache.find(className); it != cache.end()) {
+            return it->second;
+        }
+        UObjectBase *found = nullptr;
+        if (auto *arr = HogwartsMP::Core::gGlobals.objectArray) {
+            const int total = arr->GetObjectArrayNum();
+            for (int i = 0; i < total; ++i) {
+                auto *item = arr->IndexToObject(i);
+                if (item && item->Object && narrow(item->Object->GetClass()->GetFName()) == className) {
+                    found = item->Object;
+                    break;
+                }
+            }
+        }
+        cache[className] = found;
+        return found;
+    }
+
+    // Spawn an attached FX — Cascade (UParticleSystem) or Niagara (UNiagaraSystem) — at the wand tip
+    // (MuzzleSocket) and return its component so it can be stopped when Lumos ends. The asset type picks
+    // the library/function; the param block is written by NAME to absorb signature differences.
+    UObjectBase *SpawnAttachedFX(UObjectBase *comp, const wchar_t *path) {
+        if (!comp) {
+            return nullptr;
+        }
+        static auto *objCls = FindUClass("Class /Script/CoreUObject.Object");
+        auto *asset         = objCls ? LoadObjectByPath(objCls, path) : nullptr;
+        if (!asset) {
+            return nullptr;
+        }
+        const bool niagara   = narrow(asset->GetClass()->GetFName()).find("Niagara") != std::string::npos;
+        const char *libClass = niagara ? "NiagaraFunctionLibrary" : "GameplayStatics";
+        const char *fnName   = niagara ? "SpawnSystemAttached" : "SpawnEmitterAttached";
+        auto *lib            = FindLibraryCDO(libClass);
+        if (!lib) {
+            return nullptr;
+        }
+        auto *fn = reinterpret_cast<UObjectBase *>(FindFunctionInChain(lib, fnName));
+        if (!fn) {
+            return nullptr;
+        }
+        uint8_t buf[256] = {0};
+        int retOff       = -1;
+        for (FField *f = reinterpret_cast<UStruct *>(fn)->ChildProperties; f; f = f->Next) {
+            auto *p         = static_cast<FProperty *>(f);
+            const auto name = narrow(p->GetFName());
+            const auto type = narrow(p->GetClass()->GetFName());
+            const int off   = p->GetOffset_ForInternal();
+            if (name == "EmitterTemplate" || name == "SystemTemplate") {
+                *reinterpret_cast<UObjectBase **>(buf + off) = asset;
+            }
+            else if (name == "AttachToComponent") {
+                *reinterpret_cast<UObjectBase **>(buf + off) = comp;
+            }
+            else if (name == "AttachPointName") {
+                *reinterpret_cast<FName *>(buf + off) = MakeFName(L"MuzzleSocket");
+            }
+            else if (name == "Scale") {
+                auto *fl = reinterpret_cast<float *>(buf + off);
+                fl[0] = fl[1] = fl[2] = 1.f;
+            }
+            else if (name == "LocationType") {
+                buf[off] = 2; // EAttachLocation::SnapToTarget
+            }
+            else if (type == "BoolProperty" && (name == "bAutoActivate" || name == "bAutoDestroy")) {
+                auto *bp = static_cast<FBoolProperty *>(f);
+                buf[off + bp->ByteOffset] |= bp->ByteMask;
+            }
+            else if (name == "ReturnValue") {
+                retOff = off;
+            }
+        }
+        CallUFunction(lib, fnName, buf);
+        return retOff >= 0 ? *reinterpret_cast<UObjectBase **>(buf + retOff) : nullptr;
+    }
+
+    // The layered Lumos wand-tip FX HL stacks: the muzzle glow (Cascade) + the rotating lens flare
+    // (Niagara). Both attach at MuzzleSocket.
+    const wchar_t *kLumosVfx[] = {
+        L"/Game/VFX/Particles/Magic/Lumos/P_Lumos_Muzzle.P_Lumos_Muzzle",
+        L"/Game/VFX/Particles/Magic/Lumos/VFX_NS_Lumos_LensFlare_Muzzle.VFX_NS_Lumos_LensFlare_Muzzle",
+    };
 } // namespace
 
 namespace HogwartsMP::Core::Modules {
@@ -610,6 +778,9 @@ namespace HogwartsMP::Core::Modules {
         SetFlag(Shared::Modules::HumanSync::Cast, casting);
         data.spellId  = casting ? Shared::Modules::SpellRecordId(ActiveSpellRecordPath(pc->Pawn).c_str()) : 0;
         data.aimPitch = casting ? LocalAimPitch(pc) : 0;
+
+        // Wand light (Lumos): sustained on-foot state — the proxy attaches a warm light + arm-up pose while set.
+        SetFlag(Shared::Modules::HumanSync::Lumos, !mounted && DetectLumos(pc->Pawn));
 
         // World velocity — only while mounted (remotes dead-reckon the broom from it; the on-foot snapshot
         // path ignores it). Zeroed on foot so the value stops changing and its delta Field goes quiet.
@@ -745,6 +916,7 @@ namespace HogwartsMP::Core::Modules {
                 UpdateGait();
             }
             UpdateCast();
+            UpdateLumos();
         }
     }
 
@@ -932,6 +1104,78 @@ namespace HogwartsMP::Core::Modules {
         _castLast = casting;
     }
 
+    // Mirror the synced Lumos state onto the proxy: on the rising edge attach a warm light at the wand tip
+    // + hold the arm-up pose (UpperBody slot, so legs keep walking) + the wand-tip FX; on the falling edge
+    // tear all three down. Sustained state, edge-triggered on the held flag. Skipped while mounted.
+    void ClientHuman::UpdateLumos() {
+        const bool on = IsLumos() && !_mounted;
+        if (on == _lumosLast) {
+            return;
+        }
+        _lumosLast = on;
+        if (on) {
+            if (auto *actor = AliveActor(_actor, _actorIndex)) {
+                if (auto *light = SpawnLumosLight(actor, AliveActor(_wand, _wandIndex), _mesh)) {
+                    _lumosLight      = light;
+                    _lumosLightIndex = ObjectIndex(light);
+                }
+            }
+            if (_mesh) {
+                static UObjectBase *holdClip = [] {
+                    auto *c = LoadAnimSequence(L"/Game/Animation/Human/Hu_Cmbt_Lumos_Hold_anm.Hu_Cmbt_Lumos_Hold_anm");
+                    RootObject(c);
+                    return c;
+                }();
+                if (holdClip) {
+                    _lumosHold = PlaySlotMontageLooping(_mesh, holdClip, L"UpperBody");
+                }
+            }
+            if (auto *wandActor = AliveActor(_wand, _wandIndex)) {
+                if (auto *comp = ReadObjectProperty(reinterpret_cast<UObjectBase *>(wandActor), "RootComponent")) {
+                    for (auto *path : kLumosVfx) {
+                        if (auto *fx = SpawnAttachedFX(comp, path)) {
+                            _lumosVfx.push_back({fx, static_cast<int32_t>(fx->GetUniqueID())});
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            DestroyLumosLight();
+        }
+    }
+
+    void ClientHuman::DestroyLumosLight() {
+        if (auto *light = AliveActor(_lumosLight, _lumosLightIndex)) {
+            if (GWorld && *GWorld && UWorld__DestroyActor) {
+                UWorld__DestroyActor(*GWorld, light, false, true);
+            }
+        }
+        _lumosLight      = nullptr;
+        _lumosLightIndex = -1;
+        _lumosLast       = false;
+        // Lower the wand: stop the held arm montage so the UpperBody slot blends back to locomotion.
+        if (_lumosHold) {
+            StopMontageOnSkin(_mesh, _lumosHold, 0.25f);
+            _lumosHold = nullptr;
+        }
+        // Stop the tip FX (bAutoDestroy self-cleans each). Cascade uses DeactivateSystem, Niagara Deactivate.
+        // Validate each against the object array first — a collected/auto-destroyed component would dangle.
+        auto *arr = HogwartsMP::Core::gGlobals.objectArray;
+        for (auto &[fx, index] : _lumosVfx) {
+            if (!fx || !arr) {
+                continue;
+            }
+            auto *item = arr->IndexToObject(index);
+            if (!item || item->Object != fx) {
+                continue; // GC'd or slot reused
+            }
+            CallUFunction(fx, "DeactivateSystem", nullptr);
+            CallUFunction(fx, "Deactivate", nullptr);
+        }
+        _lumosVfx.clear();
+    }
+
     void ClientHuman::DeallocReplica(MafiaNet::Connection_RM3 *) {
         if (_isLocal) {
             if (Human::GetLocal() == this) {
@@ -939,10 +1183,11 @@ namespace HogwartsMP::Core::Modules {
             }
         }
         else {
-            // Tear the broom + wand down first so they aren't orphaned when the proxy goes away.
+            // Tear the broom + wand + Lumos light down first so they aren't orphaned when the proxy goes away.
             if (_mounted) {
                 BroomRider::Dismount(AliveActor(_actor, _actorIndex), nullptr, AliveActor(_broom, _broomIndex));
             }
+            DestroyLumosLight();
             StudentProxy::DestroyProxy(AliveActor(_wand, _wandIndex));
             StudentProxy::DestroyProxy(AliveActor(_actor, _actorIndex));
             CcdWire::ForgetProxy(_ccc); // unroot the CCD we layered onto this proxy
