@@ -2,20 +2,20 @@
 
 #include "utils/safe_win32.h"
 
+#include <fu2/function2.hpp>
+
 #include <string>
 
 namespace HogwartsMP::Core::UI {
-    // Web-backed in-game HUD (hud.html on the hosted UI). One fullscreen CEF
-    // overlay hosting the corner version/connection text plus a tabbed dev menu
-    // (F8): console, playground (spawn/students/dump), teleport and web debug.
-    //
-    // The HTML page owns presentation; this class owns the view lifecycle, the
-    // C++<->JS event bridge and the focus/control-lock state. Drive it from the
-    // game thread (Application::PostUpdate), NOT inside an ImGui widget lambda —
-    // key edges set by the CEF message pump are cleared before deferred widgets
-    // run (same constraint as Chat).
+    // Web-backed in-game HUD (hud.html): corner version/connection text, the
+    // main-menu connect screen, and the F8 dev menu. Owns the view lifecycle +
+    // C++<->JS bridge. Drive from the game thread (PostUpdate), NOT an ImGui
+    // widget — CEF clears key edges before deferred widgets run (like Chat).
     class Hud final {
       public:
+        using OnConnectProc = fu2::function<void(const std::string &host, const std::string &nickname)>;
+        using OnOfflineProc = fu2::function<void()>;
+
         Hud() = default;
 
         // Ensure the view, forward new log lines, refresh dynamic HUD values.
@@ -35,6 +35,17 @@ namespace HogwartsMP::Core::UI {
         // Centered banner text ("" clears it). Pushed once the page is ready.
         void SetBanner(const std::string &text);
 
+        // Main-menu connect screen. The menu state owns the connection flow and
+        // receives the user's choice through these callbacks.
+        void OpenConnect(const std::string &ip, const std::string &nickname, bool discord);
+        void CloseConnect();
+        inline void SetOnConnectCallback(OnConnectProc proc) {
+            _onConnect = std::move(proc);
+        }
+        inline void SetOnOfflineCallback(OnOfflineProc proc) {
+            _onOffline = std::move(proc);
+        }
+
       private:
         void EnsureView();
 
@@ -43,6 +54,7 @@ namespace HogwartsMP::Core::UI {
         void PollLogs();         // forward ring-buffer delta, batched
         void PushWebDebug();     // diagnostics, only while that tab is open
         void PushPlayground();   // live student count, only while that tab is open
+        void PushConnect();      // (re)apply the connect screen once the page is ready
 
         int _viewId      = -1;
         bool _pageReady  = false;
@@ -67,5 +79,15 @@ namespace HogwartsMP::Core::UI {
 
         // Web-debug / playground refresh throttle (ticks)
         int _webDebugTick = 0;
+
+        // Connect screen: desired state, kept so it can be (re)applied when the
+        // page becomes ready (the menu may enter before the DOM loads).
+        bool _connectOpen    = false;
+        bool _connectLocked  = false;
+        bool _connectDiscord = false;
+        std::string _connectIp;
+        std::string _connectNickname;
+        OnConnectProc _onConnect {};
+        OnOfflineProc _onOffline {};
     };
 } // namespace HogwartsMP::Core::UI

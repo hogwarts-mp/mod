@@ -48,9 +48,8 @@ namespace HogwartsMP::Core::UI {
             _lastForwardedLine.clear();
         }
 
-        // Fullscreen passive overlay (0x0 = viewport size). Displayed but NOT
-        // focused: the HUD paints over the game without stealing input. Focus is
-        // taken only while the dev menu is open.
+        // Fullscreen overlay (0x0 = viewport size), displayed but unfocused —
+        // focus is taken only while the dev menu / connect screen is open.
         _viewId = webManager->CreateView(kHudUrl, 0, 0);
         if (_viewId < 0) {
             Framework::Logging::GetLogger("Web")->error("Failed to create HUD web view");
@@ -69,6 +68,7 @@ namespace HogwartsMP::Core::UI {
             _pageReady    = true;
             _staticPushed = false;
             PushStaticState();
+            PushConnect();  // re-apply if the menu opened the connect screen first
             Framework::Logging::GetLogger("Web")->info("HUD web view ready");
         });
 
@@ -134,6 +134,24 @@ namespace HogwartsMP::Core::UI {
         });
         view->AddEventListener("pg:dump", [](const std::string &) {
             HogwartsMP::Core::AppearanceDump::RequestDump();
+        });
+
+        // Connect screen (main menu) — relay the user's choice to the menu state
+        view->AddEventListener("connect:submit", [this](const std::string &payload) {
+            const auto j = nlohmann::json::parse(payload, nullptr, false);
+            if (j.is_discarded()) {
+                return;
+            }
+            const std::string host     = j.value("host", "");
+            const std::string nickname = j.value("nickname", "");
+            if (_onConnect) {
+                _onConnect(host, nickname);
+            }
+        });
+        view->AddEventListener("connect:offline", [this](const std::string &) {
+            if (_onOffline) {
+                _onOffline();
+            }
         });
 
         Framework::Logging::GetLogger("Web")->info("HUD web view {} created ({})", _viewId, kHudUrl);
@@ -288,6 +306,18 @@ namespace HogwartsMP::Core::UI {
 
     void Hud::Update() {
         EnsureView();
+
+        // Apply connect focus/lock if the view came up after OpenConnect ran.
+        if (_connectOpen && !_connectLocked) {
+            const auto webManager = gApplication->GetWebManager();
+            const auto view       = (webManager && _viewId >= 0) ? webManager->GetView(_viewId) : nullptr;
+            if (view) {
+                view->Focus(true);
+                gApplication->LockControls(true);
+                _connectLocked = true;
+            }
+        }
+
         PushStaticState();
         PushHudValues();
         PollLogs();
@@ -332,7 +362,9 @@ namespace HogwartsMP::Core::UI {
         const auto view       = (webManager && _viewId >= 0) ? webManager->GetView(_viewId) : nullptr;
         if (view) {
             view->EvaluateScript("window.hmpHud && window.hmpHud.devmenu.close();");
-            view->Focus(false);
+            if (!_connectOpen) {
+                view->Focus(false);  // keep focus if the connect screen still needs it
+            }
         }
         if (_devLocked) {
             gApplication->LockControls(false);
@@ -356,6 +388,60 @@ namespace HogwartsMP::Core::UI {
         const auto view       = (webManager && _viewId >= 0) ? webManager->GetView(_viewId) : nullptr;
         if (view && _pageReady) {
             view->EvaluateScript(fmt::format("window.hmpHud && window.hmpHud.setBanner({});", nlohmann::json(_banner).dump()));
+        }
+    }
+
+    void Hud::OpenConnect(const std::string &ip, const std::string &nickname, bool discord) {
+        _connectOpen     = true;
+        _connectIp       = ip;
+        _connectNickname = nickname;
+        _connectDiscord  = discord;
+
+        const auto webManager = gApplication->GetWebManager();
+        const auto view       = (webManager && _viewId >= 0) ? webManager->GetView(_viewId) : nullptr;
+        if (view) {
+            // Focus can be taken before the DOM is ready; PushConnect shows the
+            // panel once the page reports in.
+            view->Focus(true);
+            if (!_connectLocked) {
+                gApplication->LockControls(true);
+                _connectLocked = true;
+            }
+            PushConnect();
+        }
+    }
+
+    void Hud::PushConnect() {
+        const auto webManager = gApplication->GetWebManager();
+        const auto view       = (webManager && _viewId >= 0) ? webManager->GetView(_viewId) : nullptr;
+        if (!view || !_pageReady || !_connectOpen) {
+            return;
+        }
+
+        nlohmann::json o;
+        o["ip"]       = _connectIp;
+        o["nickname"] = _connectNickname;
+        o["discord"]  = _connectDiscord;
+        view->EvaluateScript(fmt::format("window.hmpHud && window.hmpHud.connect.open({});", o.dump()));
+    }
+
+    void Hud::CloseConnect() {
+        if (!_connectOpen) {
+            return;
+        }
+        _connectOpen = false;
+
+        const auto webManager = gApplication->GetWebManager();
+        const auto view       = (webManager && _viewId >= 0) ? webManager->GetView(_viewId) : nullptr;
+        if (view) {
+            view->EvaluateScript("window.hmpHud && window.hmpHud.connect.close();");
+            if (!_devMenuOpen) {
+                view->Focus(false);
+            }
+        }
+        if (_connectLocked) {
+            gApplication->LockControls(false);
+            _connectLocked = false;
         }
     }
 
