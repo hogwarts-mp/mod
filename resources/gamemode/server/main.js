@@ -200,6 +200,9 @@ Events.on("chatCommand", (player, message, command, args) => {
             if (npcWalkTimer) {
                 clearInterval(npcWalkTimer);
                 npcWalkTimer = null;
+                // Clear in-air so an NPC stopped mid-jump doesn't stay stuck in the fall anim (the
+                // per-tick re-assert that normally clears it is gone once the timer stops).
+                for (const npc of npcs) npc.setInAir(false);
                 player.sendChat("[DEV] NPCs stopped");
                 break;
             }
@@ -207,26 +210,51 @@ Events.on("chatCommand", (player, message, command, args) => {
                 player.sendChat("[DEV] No NPCs to walk — use /spawnnpc first");
                 break;
             }
-            // Orbit each NPC around an absolute center (the player's current spot)
-            // with a wide radius so the motion is unmistakable. Setting absolute
-            // positions avoids the tiny oscillation a += accumulator produced.
+            // Orbit each NPC around the player's spot, cycling the gait speed bands (+ a jump) so the
+            // remote-avatar locomotion sync can be eyeballed with a single client: orbit linear speed
+            // drives the client's gait clip (walk/run/sprint), the rotation set to the movement tangent
+            // exercises facing, and setInAir() toggles the in-air fall anim + a small Z hop.
             const c = player.position;
             const center = { x: c.x, y: c.y, z: c.z };
-            const RADIUS = 300; // ~3 m
+            const RADIUS = 400; // ~4 m
+            const DT = 0.05; // 50 ms tick, in seconds
+            // { linear speed cm/s, seconds, inAir } per phase (objects, not a tuple array, so checkJs
+            // infers speed/dur as numbers).
+            const PHASES = [
+                { speed: 0, dur: 2, inAir: false },
+                { speed: 150, dur: 4, inAir: false },
+                { speed: 475, dur: 4, inAir: false },
+                { speed: 700, dur: 4, inAir: false },
+                { speed: 475, dur: 1.2, inAir: true },
+            ];
             let angle = 0;
+            let phase = 0;
+            let phaseT = 0;
             npcWalkTimer = setInterval(() => {
-                angle += 0.05;
+                const { speed, dur, inAir } = PHASES[phase];
+                phaseT += DT;
+                if (phaseT >= dur) {
+                    phaseT = 0;
+                    phase = (phase + 1) % PHASES.length;
+                }
+                angle += (speed / RADIUS) * DT; // linear -> angular
+                const hop = inAir ? Math.sin(Math.PI * (phaseT / dur)) * 120 : 0; // little jump arc
                 for (let i = 0; i < npcs.length; i++) {
-                    const phase = angle + (i * 2 * Math.PI) / npcs.length;
-                    // Vector3.set() — assigning pos.x/.y/.z directly only writes a
-                    // JS shadow (x/y/z are SetNativeDataProperty), leaving the
-                    // underlying C++ vector unchanged, so the move would be a no-op.
+                    const a = angle + (i * 2 * Math.PI) / npcs.length;
+                    // Vector3.set() — assigning pos.x/.y/.z directly only writes a JS shadow
+                    // (SetNativeDataProperty), leaving the C++ vector unchanged → the move is a no-op.
                     const pos = npcs[i].position;
-                    pos.set(center.x + Math.cos(phase) * RADIUS, center.y + Math.sin(phase) * RADIUS, center.z);
+                    pos.set(center.x + Math.cos(a) * RADIUS, center.y + Math.sin(a) * RADIUS, center.z + hop);
                     npcs[i].position = pos;
+                    // Face the movement tangent (Euler yaw about Z); the client reads it back as facing.
+                    const yawDeg = (Math.atan2(Math.cos(a), -Math.sin(a)) * 180) / Math.PI;
+                    const rot = npcs[i].rotation;
+                    rot.set(0, 0, yawDeg);
+                    npcs[i].rotation = rot;
+                    npcs[i].setInAir(inAir); // re-asserted each tick → clears itself when the jump ends
                 }
             }, 50);
-            player.sendChat(`[DEV] Walking ${npcs.length} NPC(s) in a circle (run /walknpcs again to stop)`);
+            player.sendChat(`[DEV] Walking ${npcs.length} NPC(s): idle→walk→run→sprint→jump (run /walknpcs again to stop)`);
             break;
         }
 

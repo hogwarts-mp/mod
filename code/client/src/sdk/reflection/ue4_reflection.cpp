@@ -362,4 +362,69 @@ namespace HogwartsMP::Core::UE4 {
         }
         return false;
     }
+
+    UObjectBase *LoadAnimSequence(const wchar_t *path) {
+        static std::unordered_map<std::wstring, UObjectBase *> cache;
+        if (auto it = cache.find(path); it != cache.end()) {
+            return it->second;
+        }
+        static auto *seqCls = FindUClass("Class /Script/Engine.AnimSequence");
+        auto *seq           = seqCls ? LoadObjectByPath(seqCls, path) : nullptr;
+        cache[path]         = seq; // negatives cached too — a missing asset won't reload-spam each frame
+        return seq;
+    }
+
+    UObjectBase *LoadAnimAsset(const wchar_t *path) {
+        // Validate against the AnimationAsset base so a BlendSpace / BlendSpace1D / AnimSequence all pass.
+        static std::unordered_map<std::wstring, UObjectBase *> cache;
+        if (auto it = cache.find(path); it != cache.end()) {
+            return it->second;
+        }
+        static auto *assetCls = FindUClass("Class /Script/Engine.AnimationAsset");
+        auto *obj             = assetCls ? LoadObjectByPath(assetCls, path) : nullptr;
+        cache[path]           = obj;
+        return obj;
+    }
+
+    bool PlayAnimBlended(UObjectBase *skin, UObjectBase *asset, bool loop, float blendInSec) {
+        if (!skin || !asset) {
+            return false;
+        }
+        // SetAnimationAsset on the existing single-node instance snapshots the current pose and blends
+        // into the new asset over InBlendInTime — the crossfade plain PlayAnimation lacks. Needs an
+        // instance to already exist (the proxy's baked AnimBP / a prior PlayAnimation creates one), so
+        // the first-ever play / a build without SetAnimationAsset falls through to the instant path.
+        if (auto *inst = ReadObjectProperty(skin, "AnimScriptInstance")) {
+            struct {
+                UObjectBase *NewAsset;
+                bool bIsLooping;
+                float InBlendInTime;
+            } p {asset, loop, blendInSec};
+            if (CallUFunction(inst, "SetAnimationAsset", &p)) {
+                return true;
+            }
+        }
+        struct {
+            UObjectBase *NewAnimToPlay;
+            bool bLooping;
+        } play {asset, loop};
+        CallUFunction(skin, "PlayAnimation", &play); // no instance yet, or not reflected — instant swap
+        return false;
+    }
+
+    bool SetBlendSpaceInputOnSkin(UObjectBase *skin, float x, float y) {
+        if (!skin) {
+            return false;
+        }
+        // The single-node instance (created by PlayAnimation / a blendspace PlayAnimBlended) owns the
+        // blendspace coordinate.
+        auto *inst = ReadObjectProperty(skin, "AnimScriptInstance");
+        if (!inst) {
+            return false;
+        }
+        struct {
+            float X, Y, Z;
+        } in {x, y, 0.f}; // FVector InBlendInput (UE4.27 floats)
+        return CallUFunction(inst, "SetBlendSpaceInput", &in);
+    }
 } // namespace HogwartsMP::Core::UE4

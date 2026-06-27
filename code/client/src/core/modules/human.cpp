@@ -5,6 +5,7 @@
 #include "core/appearance_dump.h"
 #include "core/application.h"
 #include "core/ccd_wire.h"
+#include "core/proxy_locomotion.h"
 #include "core/student_proxy.h"
 #include "sdk/natives/ue4_natives.h"
 #include "sdk/reflection/ue4_reflection.h"
@@ -18,6 +19,10 @@
 
 #include <sdk/offsets/entities/uplayer.h>
 
+#include "UObject/UObjectArray.h"
+
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 
 namespace {
@@ -134,6 +139,65 @@ namespace {
         } params {pos, rot, false};
         CallUFunction(actor, "K2_TeleportTo", &params);
     }
+
+    // Drive locomotion with our packed ABP_RemoteAvatar (a Speed-steered 1D blendspace) instead of the
+    // single-node ProxyLocomotion clips — smooth gait blending. Flip false to force the tested fallback.
+    constexpr bool kUseDiyAbp     = true;
+    const wchar_t *kRemoteAbpPath = L"/Game/Avatar/ABP_RemoteAvatar.ABP_RemoteAvatar_C";
+
+    // Pin a loaded asset into the GC root set so a cached UObject* can't dangle (the ABP class is cached
+    // in a static; an unrooted cached pointer can be freed by a collection and then dereferenced).
+    void RootObject(UObjectBase *obj) {
+        auto *arr = HogwartsMP::Core::gGlobals.objectArray;
+        if (!obj || !arr) {
+            return;
+        }
+        auto *item = arr->IndexToObject(static_cast<int32_t>(obj->GetUniqueID()));
+        if (item && item->Object == obj) {
+            item->SetFlags(EInternalObjectFlags::RootSet);
+        }
+    }
+
+    // The rotation the proxy should hold. BP_RemoteAvatarCCC bakes its own mesh orientation (the mesh
+    // faces the actor's +X forward), so the actor faces the synced rotation directly. Single tuning seam
+    // if a build's proxy turns out to need a mesh-yaw correction.
+    glm::quat ProxyFacing(const glm::quat &synced) {
+        return synced;
+    }
+
+    // Whether the pawn is airborne (jumping/falling) — drives the remote in-air anim. Reads
+    // CharacterMovementComponent::IsFalling (true off the ground in either direction).
+    bool DetectInAir(void *pawn) {
+        static auto *cmcCls = FindUClass("Class /Script/Engine.CharacterMovementComponent");
+        if (!cmcCls) {
+            return false;
+        }
+        struct {
+            UClass *ComponentClass;
+            UObjectBase *ReturnValue;
+        } get {cmcCls, nullptr};
+        CallUFunction(pawn, "GetComponentByClass", &get);
+        if (!get.ReturnValue) {
+            return false;
+        }
+        struct {
+            bool ReturnValue;
+        } falling {false};
+        CallUFunction(get.ReturnValue, "IsFalling", &falling);
+        return falling.ReturnValue;
+    }
+
+    // Switch a skeletal mesh into AnimBlueprint mode running animClass. UE4.27 names it SetAnimClass; some
+    // builds expose SetAnimInstanceClass — try both.
+    bool SetAnimClassOn(void *comp, UObjectBase *animClass) {
+        struct {
+            UObjectBase *NewClass;
+        } p {animClass};
+        if (CallUFunction(comp, "SetAnimClass", &p)) {
+            return true;
+        }
+        return CallUFunction(comp, "SetAnimInstanceClass", &p);
+    }
 } // namespace
 
 namespace HogwartsMP::Core::Modules {
@@ -154,10 +218,9 @@ namespace HogwartsMP::Core::Modules {
     }
 
     void ClientHuman::SpawnProxy() {
-        _interpolator.GetPosition()->SetCompensationFactor(1.5f);
-
-        UObjectBase *ccc = nullptr;
-        auto *actor      = StudentProxy::SpawnProxy(position.x, position.y, position.z, 0.f, &ccc);
+        UObjectBase *ccc  = nullptr;
+        UObjectBase *mesh = nullptr;
+        auto *actor       = StudentProxy::SpawnProxy(position.x, position.y, position.z, 0.f, &ccc, &mesh);
         if (!actor) {
             Framework::Logging::GetLogger("Human")->error("Remote avatar spawn failed");
             return;
@@ -165,6 +228,7 @@ namespace HogwartsMP::Core::Modules {
         _actor         = actor;
         _actorIndex    = ObjectIndex(actor);
         _ccc           = ccc;
+        _mesh          = mesh;
         _lastTarget    = position;
         _lastTargetRot = rotation;
         _hasTarget     = true;
@@ -207,6 +271,10 @@ namespace HogwartsMP::Core::Modules {
         position            = {worldLoc.X, worldLoc.Y, worldLoc.Z};
         rotation            = QuatFromRotator(GetActorRot(pc->Pawn));
 
+        // Publish in-air state (rides the DeltaSerializer to the server, then everyone) so remote proxies
+        // play the fall clip; the vertical arc itself comes from the synced position.
+        SetFlag(Shared::Modules::HumanSync::InAir, DetectInAir(pc->Pawn));
+
         // On a CacheCCD rebuild (pointer change — assumes HL reallocates it), harvest + send the look; the
         // content signature suppresses redundant sends.
         auto *cccCls = FindUClass("Class /Script/CustomizableCharacter.CustomizableCharacterComponent");
@@ -240,40 +308,188 @@ namespace HogwartsMP::Core::Modules {
         }
     }
 
-    void ClientHuman::UpdateRemote(float tickInterval) {
+    void ClientHuman::UpdateRemote(float) {
         auto *target = AliveActor(_actor, _actorIndex);
         if (!target) {
             return;
         }
-        const auto curRaw = GetActorPos(target);
-        const glm::vec3 cur {curRaw.X, curRaw.Y, curRaw.Z};
-        const glm::quat curRot = QuatFromRotator(GetActorRot(target));
 
-        // A fresh replicated transform since the last leg? Set up a new interpolation (or snap on a
-        // teleport-sized jump). Detected by comparison — Deserialize updates position/rotation in
-        // place with no callback.
+        // A fresh replicated transform? Record a snapshot + feed the speed estimator. Detected by
+        // comparison — Deserialize updates position/rotation in place with no callback. A teleport-sized
+        // jump since the last packet snaps (clears the buffer) so we don't lerp across the gap.
         if (!_hasTarget || position != _lastTarget || rotation != _lastTargetRot) {
-            const glm::vec3 delta = position - cur;
-            const bool farAway    = glm::dot(delta, delta) > 5000.f * 5000.f;
-            if (!farAway) {
-                _interpolator.GetPosition()->SetTargetValue(cur, position, tickInterval);
-                _interpolator.GetRotation()->SetTargetValue(curRot, rotation, tickInterval);
-            }
-            else {
-                // Streaming-in / teleport-sized jumps snap instead of crawling.
-                TeleportActor(target, {position.x, position.y, position.z}, RotatorFromQuat(rotation));
-                _interpolator.GetPosition()->SetTargetValue(position, position, tickInterval);
-                _interpolator.GetRotation()->SetTargetValue(rotation, rotation, tickInterval);
-            }
+            const glm::vec3 moved = position - _lastTarget;
+            const bool jumped     = _hasTarget && glm::dot(moved, moved) > 5000.f * 5000.f;
+            UpdatePacketSpeed(moved, jumped || !_hasTarget);
+            _interp.Push(position, ProxyFacing(rotation), jumped || !_hasTarget);
             _lastTarget    = position;
-            _lastTargetRot = rotation;
+            _lastTargetRot = rotation; // raw synced rotation — fresh-packet detection compares the wire value
             _hasTarget     = true;
+        }
+
+        // Every frame: place the proxy at the snapshot-interpolated transform, decay the speed if stalled,
+        // drive the gait. (Sampling/gait run every frame, not just on packet-arrival frames.) Render ~2
+        // packet intervals in the past so two snapshots always bracket the render time.
+        const float bufferMs = std::clamp(_intervalMs * 2.0f, 80.0f, 300.0f);
+        glm::vec3 rp;
+        glm::quat rr;
+        if (_interp.Sample(rp, rr, bufferMs)) {
+            TeleportActor(target, {rp.x, rp.y, rp.z}, RotatorFromQuat(rr));
+        }
+
+        // A stopped avatar sends no position packets (delta compression), so the last speed would stick and
+        // idle would keep playing the run/walk clip. Decay to standing after several missed sends (with
+        // headroom over the measured interval so a jittery link doesn't zero a still-moving avatar).
+        const float stopMs = std::max(300.f, _intervalMs * 3.f);
+        if (_havePacketTime &&
+            std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - _lastPacketTime).count() > stopMs) {
+            _speed          = 0.0f;
+            _distAccum      = 0.0f;
+            _timeAccum      = 0.0f;
+            _havePacketTime = false; // next packet is treated as the first — clean resume, no huge-dt sample
+        }
+        // Gate anim driving until the async CCC body mesh is built (the position teleport above is safe
+        // pre-build; the graft / Speed writes are not).
+        if (ProxyReadyToDrive()) {
+            UpdateGait();
+        }
+    }
+
+    // Ground speed for gait selection from how far the replicated position moved between packets
+    // (horizontal only). EWMA Σdistance / Σtime: numerator and denominator share the decay, so noisy
+    // per-packet arrival time cancels (dividing a single distance by a single jittery dt flickers gait).
+    void ClientHuman::UpdatePacketSpeed(const glm::vec3 &moved, bool teleported) {
+        const auto now = std::chrono::steady_clock::now();
+        if (teleported || !_havePacketTime) {
+            _speed     = 0.0f;
+            _distAccum = 0.0f;
+            _timeAccum = 0.0f;
+        }
+        else {
+            const float dt = std::chrono::duration<float>(now - _lastPacketTime).count();
+            if (dt > 1e-3f && dt < 1.0f) {
+                const float horiz      = std::sqrt(moved.x * moved.x + moved.y * moved.y);
+                constexpr float kDecay = 0.8f; // ~5-packet window
+                _distAccum             = _distAccum * kDecay + horiz;
+                _timeAccum             = _timeAccum * kDecay + dt;
+                if (_timeAccum > 1e-4f) {
+                    _speed = _distAccum / _timeAccum;
+                }
+                const float intervalMs = dt * 1000.f;
+                _intervalMs            = _intervalMs > 0.f ? _intervalMs + (intervalMs - _intervalMs) * 0.3f : intervalMs;
+            }
+        }
+        _lastPacketTime = now;
+        _havePacketTime = true;
+    }
+
+    // DIY-pak locomotion: assign ABP_RemoteAvatar to the body mesh once, then steer its Speed var by the
+    // synced ground speed every frame (the blendspace blends idle→walk→jog→sprint). In-air rides the
+    // synced InAir flag into bInAir. The writes are no-ops until the ABP ships the vars.
+    void ClientHuman::UpdateGaitAbp() {
+        if (!_abpAssigned) {
+            static auto *clsMeta = FindUClass("Class /Script/CoreUObject.Class");
+            static auto *abp     = []() -> UObjectBase * {
+                auto *a = clsMeta ? LoadObjectByPath(clsMeta, kRemoteAbpPath) : nullptr;
+                RootObject(a); // pin against GC — a cached static that isn't rooted can dangle
+                return a;
+            }();
+            if (!abp) {
+                _blendUnavailable = true; // pak/ABP missing — let UpdateGait fall back to single-node
+                Framework::Logging::GetLogger("Human")->warn("ABP_RemoteAvatar load FAILED — single-node fallback");
+                return;
+            }
+            if (!SetAnimClassOn(_mesh, abp)) {
+                _blendUnavailable = true; // anim class couldn't be applied — use the known-good single-node path
+                Framework::Logging::GetLogger("Human")->warn("SetAnimClass not reflected — single-node fallback");
+                return;
+            }
+            _abpAssigned = true;
+            Framework::Logging::GetLogger("Human")->info("ABP_RemoteAvatar assigned — locomotion via custom AnimBP");
+        }
+
+        // Ease the Speed fed to the blendspace per-FRAME toward the packet-stepped _speed (writing it raw
+        // steps the input at the packet rate → gait flicker).
+        const auto now = std::chrono::steady_clock::now();
+        if (!_abpTickInit) {
+            _abpLastTick = now;
+            _abpTickInit = true;
+        }
+        const float dt = std::chrono::duration<float>(now - _abpLastTick).count();
+        _abpLastTick   = now;
+        const float k  = std::clamp(dt * 10.0f, 0.0f, 1.0f); // ~100ms follow
+        _abpSpeed += (_speed - _abpSpeed) * k;
+
+        if (auto *inst = ReadObjectProperty(_mesh, "AnimScriptInstance")) {
+            SetFloatProperty(inst, "Speed", _abpSpeed);
+            SetBoolProperty(inst, "bInAir", IsInAir());
+        }
+    }
+
+    void ClientHuman::UpdateGait() {
+        if (!_mesh) {
+            return;
+        }
+        // DIY-pak AnimBP path (smooth blending). Falls through to single-node if the pak/ABP failed.
+        if (kUseDiyAbp && !_blendUnavailable) {
+            UpdateGaitAbp();
+            return;
+        }
+        // Airborne: play the fall loop once and hold it until we land. Clear the ground latches so the
+        // gait/blend re-asserts on landing.
+        if (IsInAir()) {
+            if (!_airApplied) {
+                ProxyLocomotion::PlayAir(_mesh);
+                _airApplied       = true;
+                _gaitApplied      = false;
+                _moveBlendApplied = false;
+            }
             return;
         }
 
-        const auto newPos = _interpolator.GetPosition()->UpdateTargetValue(cur);
-        const auto newRot = _interpolator.GetRotation()->UpdateTargetValue(curRot);
-        TeleportActor(target, {newPos.x, newPos.y, newPos.z}, RotatorFromQuat(newRot));
+        const auto gait = ProxyLocomotion::GaitForSpeed(_speed, _gait);
+
+        // Standing still (or no blendspace path): discrete clips. The 1D move blendspace bottoms out at a
+        // slow walk, not a true stand, so idle always uses the clip.
+        if (gait == ProxyLocomotion::Gait::Idle || _blendUnavailable) {
+            if (!_gaitApplied || gait != _gait || _moveBlendApplied) {
+                ProxyLocomotion::PlayGait(_mesh, gait);
+                _gait             = gait;
+                _gaitApplied      = true;
+                _airApplied       = false;
+                _moveBlendApplied = false;
+            }
+            return;
+        }
+
+        // Moving: play the blendspace once, then steer it by speed every frame.
+        if (!_moveBlendApplied) {
+            if (!ProxyLocomotion::PlayMoveBlend(_mesh)) {
+                _blendUnavailable = true; // asset missing — fall back to discrete clips next frame
+                return;
+            }
+            _moveBlendApplied = true;
+            _gaitApplied      = false;
+            _airApplied       = false;
+        }
+        if (!ProxyLocomotion::DriveMoveBlend(_mesh, _speed)) {
+            _blendUnavailable = true; // not reflected here — latch the fallback, re-assert a clip next frame
+            _moveBlendApplied = false;
+        }
+    }
+
+    // Async-spawn readiness gate: the CCC build assigns CharacterMesh0's SkeletalMesh a few frames after
+    // spawn; driving (graft / Speed) before then T-poses or crashes.
+    bool ClientHuman::ProxyReadyToDrive() {
+        if (_proxyReady) {
+            return true;
+        }
+        if (!_mesh || !ReadObjectProperty(_mesh, "SkeletalMesh")) {
+            return false;
+        }
+        _proxyReady = true;
+        Framework::Logging::GetLogger("Human")->info("CCC proxy build complete — locomotion enabled");
+        return true;
     }
 
     void ClientHuman::DeallocReplica(MafiaNet::Connection_RM3 *) {

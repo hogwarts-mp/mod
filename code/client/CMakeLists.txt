@@ -28,6 +28,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/playground.cpp
     src/core/appearance_dump.cpp
     src/core/ccd_wire.cpp
+    src/core/proxy_locomotion.cpp
     src/core/student_proxy.cpp
 
     src/core/ui/chat.cpp

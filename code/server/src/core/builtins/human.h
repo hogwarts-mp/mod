@@ -24,6 +24,10 @@ namespace HogwartsMP::Scripting {
 
         void SendChat(std::string message);
 
+        // Set/clear the in-air state flag on the entity (relayed to clients so the proxy plays the fall
+        // clip). Used by the /walknpcs locomotion test harness; the vertical arc comes from position.
+        void SetInAir(bool inAir);
+
         // Emit a named event to this player's client scripts (Core.Events). payloadJson is sent as-is
         // and JSON.parsed on the client into the handler's single argument; pass JSON text.
         void Emit(std::string eventName, std::string payloadJson);

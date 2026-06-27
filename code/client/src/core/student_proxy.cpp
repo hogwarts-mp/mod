@@ -324,12 +324,18 @@ namespace HogwartsMP::Core::StudentProxy {
         return nullptr;
     }
 
-    AActor *SpawnProxy(float x, float y, float z, float yawDeg, UObjectBase **outCcc) {
+    AActor *SpawnProxy(float x, float y, float z, float yawDeg, UObjectBase **outCcc, UObjectBase **outMesh) {
         if (outCcc) {
             *outCcc = nullptr;
         }
+        if (outMesh) {
+            *outMesh = nullptr;
+        }
         UObjectBase *body = nullptr;
         auto *actor       = SpawnCccProxy({x, y, z}, yawDeg, &body);
+        if (outMesh) {
+            *outMesh = body;
+        }
         if (actor && outCcc) {
             struct {
                 UClass *ComponentClass;
