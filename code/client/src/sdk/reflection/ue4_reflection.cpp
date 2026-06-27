@@ -184,6 +184,18 @@ namespace HogwartsMP::Core::UE4 {
         return true;
     }
 
+    bool SetVec3Property(void *obj, const char *name, float a, float b, float c) {
+        auto *prop = FindPropertyInChain(static_cast<UObjectBase *>(obj)->GetClass(), name);
+        if (!prop) {
+            return false;
+        }
+        auto *f = reinterpret_cast<float *>(reinterpret_cast<uint8_t *>(obj) + prop->GetOffset_ForInternal());
+        f[0]    = a;
+        f[1]    = b;
+        f[2]    = c;
+        return true;
+    }
+
     int ReadByteProperty(void *obj, const char *name) {
         auto *prop = FindPropertyInChain(static_cast<UObjectBase *>(obj)->GetClass(), name);
         if (!prop) {

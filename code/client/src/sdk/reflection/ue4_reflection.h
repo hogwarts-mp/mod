@@ -57,6 +57,8 @@ namespace HogwartsMP::Core::UE4 {
     bool SetBoolProperty(void *obj, const char *name, bool value);
     // Unchecked: assumes the named property really is a float.
     bool SetFloatProperty(void *obj, const char *name, float value);
+    // Write three contiguous floats at the property offset (an FVector / FRotator). Unchecked.
+    bool SetVec3Property(void *obj, const char *name, float a, float b, float c);
 
     // Typed property reads (used by the AppearanceDump harvester).
     // Read a byte/uint8 (or enum) property by name; returns -1 if not found.

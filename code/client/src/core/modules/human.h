@@ -58,6 +58,12 @@ namespace HogwartsMP::Core::Modules {
         UObjectBase *_mesh  = nullptr;
         bool _proxyReady    = false;
 
+        // Broom spawned under the proxy while the player is mounted (mount state rides the Mounted flag +
+        // data.mountId). broomIndex guards the pointer; mounted latches the spawned/seated state.
+        AActor *_broom      = nullptr;
+        int32_t _broomIndex = -1;
+        bool _mounted       = false;
+
         // Snapshot interpolation buffer: each fresh replicated transform is recorded with its arrival time;
         // the proxy renders at (now - bufferDelay) by lerping the two snapshots bracketing it — smooth
         // regardless of frame/packet rate, ~bufferDelay in the past. Replaces the framework error-chaser

@@ -27,6 +27,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/teleport.cpp
     src/core/playground.cpp
     src/core/appearance_dump.cpp
+    src/core/broom_experiment.cpp
     src/core/ccd_wire.cpp
     src/core/proxy_locomotion.cpp
     src/core/student_proxy.cpp
