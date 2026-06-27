@@ -8,28 +8,38 @@
 #include <vector>
 
 namespace HogwartsMP::Core::UI {
+    // Web-backed chat overlay (chat.html served from the hosted UI). The HTML page
+    // owns presentation; this class owns the view lifecycle, the open-on-Enter edge
+    // detection and the C++<->JS event bridge.
     class Chat final {
       public:
         using OnMessageSentProc = fu2::function<void(const std::string &text)>;
 
         Chat() = default;
 
+        // Must run on the game thread outside any ImGui widget lambda: key edges
+        // set by the CEF message pump are cleared before deferred widgets run.
         void Update();
+
+        // Hide the overlay and release input (e.g. on disconnect).
+        void Hide();
 
         inline void SetOnMessageSentCallback(OnMessageSentProc proc) {
             onMessageSentProc = proc;
         }
 
-        inline void AddMessage(std::string msg) {
-            _chatMessages.push_back(msg);
-            _newMsgArrived = true;
-        }
+        void AddMessage(std::string msg);
+
       private:
+        void EnsureView();
+        void OpenInput();
+        void CloseInput();
+
         OnMessageSentProc onMessageSentProc {};
-        bool _newMsgArrived = false;
-        bool _isFocused     = false;
-        bool _awaitingEnterRelease = false; // block submit until the opening Enter is released (avoids open->instant-close)
-        std::vector<std::string> _chatMessages;
-        char _inputText[1024] {};
+        int _viewId           = -1;
+        bool _pageReady       = false;
+        bool _inputOpen       = false;
+        bool _justClosedInput = false;
+        std::vector<std::string> _pendingMessages;
     };
 } // namespace HogwartsMP::Core::UI

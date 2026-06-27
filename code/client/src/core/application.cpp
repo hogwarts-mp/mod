@@ -24,8 +24,6 @@
 #include <networking/replication/replication_manager.h>
 #include <scripting/engine.h>
 
-#include "external/imgui/widgets/corner_text.h"
-
 #include "shared/rpc/set_appearance.h"
 #include "shared/rpc/set_weather.h"
 #include "shared/version.h"
@@ -34,6 +32,7 @@
 
 #include "game_layout.h"
 #include <cstddef>
+#include <filesystem>
 
 namespace HogwartsMP::Core {
     // Compile-time guard: the SDK struct layouts (sdk/**) and the central offset
@@ -67,8 +66,8 @@ namespace HogwartsMP::Core {
 
         _commandProcessor = std::make_shared<Framework::Utils::CommandProcessor>();
         _input            = std::make_shared<HogwartsMP::Game::GameInput>();
-        _console          = std::make_shared<UI::Console>(_commandProcessor);
         _chat             = std::make_shared<UI::Chat>();
+        _hud              = std::make_shared<UI::Hud>();
 
         // Outgoing chat goes through the framework's built-in chat (server resolves the sender).
         _chat->SetOnMessageSentCallback([this](const std::string &msg) {
@@ -139,7 +138,55 @@ namespace HogwartsMP::Core {
         return SafeGrabLocalPlayer(gGlobals.world).biped;
     }
 
+    namespace {
+        // Directory of HogwartsMPClient.dll (not the game exe) — CEF cache/logs
+        // and cef_subprocess.exe live next to our binaries, not in the game dir.
+        static std::string GetClientModuleDir() {
+            static const int s_anchor = 0;
+            HMODULE selfModule        = nullptr;
+            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCWSTR>(&s_anchor), &selfModule);
+            wchar_t path[MAX_PATH] = {};
+            GetModuleFileNameW(selfModule, path, MAX_PATH);
+            return std::filesystem::path(path).parent_path().string();
+        }
+    } // namespace
+
     void Application::PostUpdate() {
+        // Bring up CEF once the renderer is live (game thread: CefInitialize binds
+        // its pump to the calling thread). One attempt only — can't re-init CEF.
+        const auto webManager = GetWebManager();
+        if (webManager && !webManager->IsInitialized() && GetRenderer() && GetRenderer()->IsInitialized() && gGlobals.window) {
+            static bool s_webInitAttempted = false;
+            if (!s_webInitAttempted) {
+                s_webInitAttempted = true;
+
+                // Diagnostic kill-switch: drop a "disable_web" file next to the
+                // client DLL to skip CEF entirely.
+                if (std::filesystem::exists(std::filesystem::path(GetClientModuleDir()) / "disable_web")) {
+                    Framework::Logging::GetLogger("Web")->info("disable_web flag present, skipping web manager init");
+                }
+                else {
+                    RECT rc {};
+                    GetClientRect(gGlobals.window, &rc);
+                    Framework::GUI::ViewportConfiguration viewport {static_cast<int>(rc.right - rc.left), static_cast<int>(rc.bottom - rc.top)};
+                    if (!webManager->Init(GetClientModuleDir(), viewport, GetRenderer())) {
+                        Framework::Logging::GetLogger("Web")->error("Web manager initialization failed, web UI disabled");
+                    }
+                    else {
+                        Framework::Logging::GetLogger("Web")->info("Web manager initialized ({}x{})", viewport.width, viewport.height);
+                    }
+                }
+            }
+        }
+
+        // Blit web views through the ImGui frame. Pushed before the local-player
+        // early-returns below so web UI also renders in the main menu.
+        if (webManager && webManager->IsInitialized()) {
+            GetImGUI()->PushWidget([webManager]() {
+                webManager->SubmitImGuiDraws();
+            });
+        }
+
         if (_stateMachine) {
             _stateMachine->Update();
         }
@@ -147,6 +194,21 @@ namespace HogwartsMP::Core {
         // Drive replicated humans: push the local player's transform upstream and interpolate remote
         // proxies. No-op until replication is active.
         Core::Modules::Human::UpdateAll(_tickInterval);
+
+        // HUD on the game thread (NOT an ImGui widget), above the local-player
+        // early-returns so it also works in the menu.
+        if (_hud) {
+            _hud->Update();
+        }
+
+        // Edge-detect hotkeys before _input->Update() clears the edges (CEF's
+        // mid-tick pump would otherwise clear them first).
+        if (_input) {
+            if (_hud && _input->IsKeyPressed(FW_KEY_F8)) {
+                _hud->ToggleDevMenu();
+            }
+            _input->Update();
+        }
 
         // If we don't have the local player yet, we try to grab it at each tick until we have it
         // This should be part of a hook "once map loaded" or "once local player created"
@@ -181,36 +243,6 @@ namespace HogwartsMP::Core {
             discordApi->SetPresence("Broomstick", "Flying around", discord::ActivityType::Playing);
         }
 
-        #if 1
-        Core::gApplication->GetImGUI()->PushWidget([&]() {
-            using namespace Framework::External::ImGUI::Widgets;
-            const auto networkClient = Core::gApplication->GetNetworkingEngine()->GetNetworkClient();
-            const auto connState     = networkClient->GetConnectionState();
-            const auto ping          = networkClient->GetPing();
-
-            _console->Update();
-            _devFeatures.Update();
-
-            if (_input->IsKeyPressed(FW_KEY_F8)) {
-                _console->Toggle();
-            }
-
-            const char *connStateNames[] = {"Connecting", "Online", "Offline"};
-
-            // versioning
-            DrawCornerText(CORNER_RIGHT_TOP, "Hogwarts Legacy Multiplayer");
-            DrawCornerText(CORNER_RIGHT_TOP, fmt::format("Framework version: {} ({})", Framework::Utils::Version::rel, Framework::Utils::Version::git));
-            DrawCornerText(CORNER_RIGHT_TOP, fmt::format("HogwartsMP version: {} ({})", HogwartsMP::Version::rel, HogwartsMP::Version::git));
-
-            // connection details
-            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Connection: {}", connStateNames[static_cast<size_t>(connState)]));
-            DrawCornerText(CORNER_LEFT_BOTTOM, fmt::format("Ping: {}", ping));
-        });
-#endif
-
-        if (_input) {
-            _input->Update();
-        }
     }
 
     void Application::PostRender() {}

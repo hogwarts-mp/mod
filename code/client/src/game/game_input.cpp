@@ -18,8 +18,12 @@ namespace HogwartsMP::Game {
         switch (msg) {
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
-            _keysDown[wParam]    = true;
-            _keysPressed[wParam] = true;
+            // Count only the down-transition (filters auto-repeat): the game
+            // re-dispatches held keys, which would re-fire F8/Enter every frame.
+            if (!_keysDown[wParam]) {
+                _keysPressed[wParam] = true;
+            }
+            _keysDown[wParam] = true;
             break;
         case WM_KEYUP:
         case WM_SYSKEYUP:

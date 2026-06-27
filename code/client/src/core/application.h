@@ -8,9 +8,10 @@
 #include <graphics/backend/d3d12.h>
 #include "dev_features.h"
 #include <utils/states/machine.h>
+#include <utils/command_processor.h>
 
 #include "ui/chat.h"
-#include "ui/console.h"
+#include "ui/hud.h"
 
 #include "game/game_input.h"
 
@@ -34,8 +35,8 @@ namespace HogwartsMP::Core {
 
         std::shared_ptr<Framework::Utils::States::Machine> _stateMachine;
         std::shared_ptr<HogwartsMP::Game::GameInput> _input;
-        std::shared_ptr<UI::Console> _console;
         std::shared_ptr<UI::Chat> _chat;
+        std::shared_ptr<UI::Hud> _hud;
         std::shared_ptr<Framework::Utils::CommandProcessor> _commandProcessor;
         DevFeatures _devFeatures;
 
@@ -77,16 +78,16 @@ namespace HogwartsMP::Core {
             return _input;
         }
 
-        std::shared_ptr<UI::Console> GetDevConsole() const {
-            return _console;
-        }
-
         DevFeatures &GetDevFeatures() {
             return _devFeatures;
         }
 
         std::shared_ptr<UI::Chat> GetChat() const {
             return _chat;
+        }
+
+        std::shared_ptr<UI::Hud> GetHud() const {
+            return _hud;
         }
 
         void LockControls(bool lock);

@@ -11,8 +11,6 @@
 
 #include <logging/logger.h>
 
-#include "external/imgui/widgets/corner_text.h"
-
 #include <cppfs/FileHandle.h>
 #include <cppfs/fs.h>
 
@@ -28,13 +26,6 @@ namespace HogwartsMP::Core {
 
     void DevFeatures::Init() {
         SetupCommands();
-        SetupMenuBar();
-    }
-
-    void DevFeatures::Update() {
-        if (_showTeleportManager) {
-            _teleportManager->Update();
-        }
     }
 
     void DevFeatures::Shutdown() {}
@@ -107,9 +98,33 @@ namespace HogwartsMP::Core {
         gApplication->_commandProcessor->RegisterCommand(
             "tele", {},
             [this](cxxopts::ParseResult &) {
-                ToggleTeleportManager();
+                gApplication->GetHud()->OpenDevMenu("teleport");
             },
-            "toggle teleport manager");
+            "open the teleport picker (dev menu)");
+        gApplication->_commandProcessor->RegisterCommand(
+            "webdebug", {},
+            [this](cxxopts::ParseResult &) {
+                gApplication->GetHud()->OpenDevMenu("webdebug");
+            },
+            "open the web-debug panel (dev menu)");
+        gApplication->_commandProcessor->RegisterCommand(
+            "break", {},
+            [this](cxxopts::ParseResult &) {
+                BreakMe();
+            },
+            "triggers a debug break");
+        gApplication->_commandProcessor->RegisterCommand(
+            "weather", {},
+            [this](cxxopts::ParseResult &) {
+                GetSeasonManager()->SetRandomSeason();
+            },
+            "randomize the season/weather");
+        gApplication->_commandProcessor->RegisterCommand(
+            "time", {{"h,hours", "hours to advance", cxxopts::value<int>()->default_value("6")}},
+            [this](const cxxopts::ParseResult &result) {
+                GetSeasonManager()->AdvanceHours(result["hours"].as<int>());
+            },
+            "[--hours N] advance the time of day");
         gApplication->_commandProcessor->RegisterCommand(
             "chat", {{"m,msg", "message to send", cxxopts::value<std::string>()->default_value("")}},
             [this](const cxxopts::ParseResult &result) {
@@ -126,41 +141,5 @@ namespace HogwartsMP::Core {
                 Disconnect();
             },
             "disconnect from server");
-    }
-
-    void DevFeatures::SetupMenuBar() {
-        gApplication->_console->RegisterMenuBarDrawer([this]() {
-            if (ImGui::BeginMenu("Debug")) {
-                if (ImGui::MenuItem("Disconnect", "F5")) {
-                    Disconnect();
-                }
-                if (ImGui::MenuItem("Crash me!")) {
-                    CrashMe();
-                }
-                if (ImGui::MenuItem("Break me!")) {
-                    BreakMe();
-                }
-                if (ImGui::MenuItem("Exit Game")) {
-                    CloseGame();
-                }
-                if (ImGui::MenuItem("Random Weather")) {
-                    GetSeasonManager()->SetRandomSeason();
-                }
-                if (ImGui::MenuItem("Time forward")) {
-                    GetSeasonManager()->AdvanceHours(6);
-                }
-                ImGui::EndMenu();
-            }
-            if (ImGui::BeginMenu("Editors")) {
-                if (ImGui::MenuItem("Teleport Manager")) {
-                    ToggleTeleportManager();
-                }
-                ImGui::EndMenu();
-            }
-        });
-    }
-
-    void DevFeatures::ToggleTeleportManager() {
-        _showTeleportManager ^= 1;
     }
 } // namespace HogwartsMP::Core

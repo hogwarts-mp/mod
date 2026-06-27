@@ -4,8 +4,6 @@
 
 #include <utils/states/machine.h>
 
-#include <external/imgui/widgets/corner_text.h>
-
 #include "../application.h"
 
 namespace HogwartsMP::Core::States {
@@ -22,15 +20,12 @@ namespace HogwartsMP::Core::States {
     }
 
     bool SessionOfflineDebugState::OnEnter(Framework::Utils::States::Machine *) {
-        // Reset camera by player
-        // TODO
-
-        // Give back controls$
-        // TODO
+        gApplication->GetHud()->SetBanner("Offline debug mode\nPress F9 to return to menu");
         return true;
     }
 
     bool SessionOfflineDebugState::OnExit(Framework::Utils::States::Machine *) {
+        gApplication->GetHud()->SetBanner("");
         return true;
     }
 
@@ -41,12 +36,6 @@ namespace HogwartsMP::Core::States {
             machine->RequestNextState(StateIds::Menu);
             shouldProceed = true;
         }
-
-        gApplication->GetImGUI()->PushWidget([&]() {
-            using namespace Framework::External::ImGUI::Widgets;
-            DrawCornerText(CORNER_RIGHT_TOP, "OFFLINE DEBUG MODE");
-            DrawCornerText(CORNER_RIGHT_TOP, "Press F9 to return to menu");
-        });
 
         return shouldProceed;
     }
