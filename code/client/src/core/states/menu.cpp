@@ -5,6 +5,7 @@
 #include <utils/states/machine.h>
 
 #include "../application.h"
+#include "../launch_config.h"
 
 namespace HogwartsMP::Core::States {
     InMenuState::InMenuState() {}
@@ -32,8 +33,23 @@ namespace HogwartsMP::Core::States {
             nickname = currUser.GetUsername();
         }
 
-        // The connect screen is the CEF HUD; it relays the user's choice back
-        // through these callbacks. Accepts host or host:port.
+        // Server selection is owned by the pre-launch launcher: if it wrote connect.json,
+        // use it and skip the in-game prompt entirely. Consume it so a later
+        // disconnect -> menu doesn't auto-reconnect in a loop.
+        if (const auto cfg = ReadConnectConfig(true)) {
+            Framework::Integrations::Client::CurrentState newApplicationState = gApplication->GetCurrentState();
+            newApplicationState.host     = cfg->host;
+            newApplicationState.port     = cfg->port;
+            newApplicationState.nickname = !cfg->nickname.empty() ? cfg->nickname : (discord ? nickname : "Player");
+            gApplication->SetCurrentState(newApplicationState);
+
+            _shouldProceedConnection = true;
+            return true;
+        }
+
+        // Fallback (no launcher selection, e.g. a direct dev injection): the manual
+        // in-game connect prompt. The CEF HUD relays the user's choice back through these
+        // callbacks. Accepts host or host:port.
         const auto hud = gApplication->GetHud();
         hud->SetOnConnectCallback([this, discord, nickname](const std::string &host, const std::string &submittedNick) {
             std::string parsedHost = host.empty() ? "127.0.0.1" : host;
