@@ -116,4 +116,10 @@ namespace HogwartsMP::Core::UE4 {
     // Set a single-node blendspace's input coordinate (X = speed for the 1D move space). Returns false
     // if the mesh has no single-node instance or SetBlendSpaceInput isn't reflected in this build.
     bool SetBlendSpaceInputOnSkin(UObjectBase *skin, float x, float y);
+
+    // Play `asset` as a one-shot dynamic montage into a named anim slot on the mesh's AnimBlueprint
+    // instance (overlays the running locomotion AnimBP — used for cast/dodge montages). Returns false if
+    // there's no AnimBP instance or the montage didn't start.
+    bool PlaySlotMontageOnSkin(UObjectBase *skin, UObjectBase *asset, const wchar_t *slotName,
+                               float blendIn = 0.25f, float blendOut = 0.25f, float playRate = 1.0f);
 } // namespace HogwartsMP::Core::UE4

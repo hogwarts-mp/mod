@@ -12,6 +12,7 @@
 #include "sdk/reflection/ue4_reflection.h"
 
 #include "shared/modules/mount_records.hpp"
+#include "shared/modules/spell_records.hpp"
 #include "shared/rpc/set_appearance.h"
 
 #include <core_modules.h>
@@ -27,6 +28,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <string>
 
 namespace {
     using namespace HogwartsMP::Core::UE4;
@@ -320,6 +322,206 @@ namespace {
         CallUFunction(wandActor, "K2_AttachToComponent", &att);
         return wandActor;
     }
+
+    // The local player's combat-AnimBP (BipedCharacter_Retargeted_AnimBP) instance — found off the pawn's
+    // first AnimBP-driven SkeletalMesh whose instance exposes FullBodyState (the robe/hair ABPs don't),
+    // cached per pawn. Local-only. Null if not found.
+    UObjectBase *LocalBodyAnimInstance(void *pawn) {
+        static void *cachedPawn      = nullptr;
+        static UObjectBase *bodyMesh = nullptr;
+        // Rescan while the result is still null (the body AnimBP may not exist on the first lookup) — only
+        // a positive find is cached. Otherwise a too-early lookup would latch null for the pawn's lifetime.
+        if (pawn != cachedPawn || !bodyMesh) {
+            cachedPawn = pawn;
+            bodyMesh   = nullptr;
+            if (auto *arr = HogwartsMP::Core::gGlobals.objectArray) {
+                const int total = arr->GetObjectArrayNum();
+                for (int i = 0; i < total; ++i) {
+                    auto *item = arr->IndexToObject(i);
+                    if (!item || !item->Object) {
+                        continue;
+                    }
+                    auto *obj      = item->Object;
+                    const auto cls = narrow(obj->GetClass()->GetFName());
+                    if (cls != "SkeletalMeshComponent" && cls != "SkeletalMeshComponentBudgeted") {
+                        continue;
+                    }
+                    auto *o1 = obj->GetOuter();
+                    if (!o1 || (o1 != pawn && o1->GetOuter() != pawn)) {
+                        continue;
+                    }
+                    if (ReadByteProperty(obj, "AnimationMode") != 0 /*AnimBlueprint*/) {
+                        continue;
+                    }
+                    auto *inst = ReadObjectProperty(obj, "AnimScriptInstance");
+                    if (inst && FindPropertyInChain(inst->GetClass(), "FullBodyState")) {
+                        bodyMesh = obj;
+                        break;
+                    }
+                }
+            }
+        }
+        return bodyMesh ? ReadObjectProperty(bodyMesh, "AnimScriptInstance") : nullptr;
+    }
+
+    // Combat-AnimBP FullBodyState values (mapped by watching the local body anim instance): 7 = spell
+    // cast (full-body, rooted). Neither is a montage on the source player, so the AnimBP state is the handle.
+    constexpr int kCastFullBodyState = 7;
+    bool DetectCast(void *pawn) {
+        auto *inst = LocalBodyAnimInstance(pawn);
+        return inst && ReadByteProperty(inst, "FullBodyState") == kCastFullBodyState;
+    }
+
+    // The local player's WandTool (the GetActiveSpellTool holder), cached per pawn: prefer one whose outer
+    // chain reaches the pawn, else the first non-CDO holder. Shared by the spell-record + Lumos reads.
+    UObjectBase *WandToolFor(void *pawn) {
+        static void *cachedPawn      = nullptr;
+        static UObjectBase *wandTool = nullptr;
+        // Rescan while still null (the tool may not exist on the first lookup); only a hit is cached.
+        if (pawn != cachedPawn || !wandTool) {
+            cachedPawn = pawn;
+            wandTool   = nullptr;
+            if (auto *arr = HogwartsMP::Core::gGlobals.objectArray) {
+                const int total        = arr->GetObjectArrayNum();
+                UObjectBase *anyHolder = nullptr;
+                for (int i = 0; i < total; ++i) {
+                    auto *item = arr->IndexToObject(i);
+                    if (!item || !item->Object) {
+                        continue;
+                    }
+                    auto *obj     = item->Object;
+                    const auto cn = narrow(obj->GetClass()->GetFName());
+                    if (cn == "Function" || cn == "Class") {
+                        continue;
+                    }
+                    if (narrow(obj->GetFName()).rfind("Default__", 0) == 0) {
+                        continue;
+                    }
+                    if (!FindFunctionInChain(obj, "GetActiveSpellTool")) {
+                        continue;
+                    }
+                    if (!anyHolder) {
+                        anyHolder = obj;
+                    }
+                    bool reaches = false;
+                    for (auto *p = obj->GetOuter(); p; p = p->GetOuter()) {
+                        if (p == pawn) {
+                            reaches = true;
+                            break;
+                        }
+                    }
+                    if (reaches) {
+                        wandTool = obj;
+                        break;
+                    }
+                }
+                if (!wandTool) {
+                    wandTool = anyHolder;
+                }
+            }
+        }
+        return wandTool;
+    }
+
+    // The local player's active spell tool (WandTool.GetActiveSpellTool()), or null.
+    UObjectBase *ActiveSpellTool(void *pawn) {
+        auto *wand = WandToolFor(pawn);
+        if (!wand) {
+            return nullptr;
+        }
+        struct {
+            UObjectBase *ReturnValue;
+        } tool {nullptr};
+        CallUFunction(wand, "GetActiveSpellTool", &tool);
+        return tool.ReturnValue;
+    }
+
+    // The active spell's SpellToolRecord asset path for the local player (empty if unavailable) — published
+    // (mapped to an allowlist id) so the proxy knows which spell a combat cast is.
+    std::string ActiveSpellRecordPath(void *pawn) {
+        auto *tool = ActiveSpellTool(pawn);
+        if (!tool) {
+            return {};
+        }
+        struct {
+            UObjectBase *ReturnValue;
+        } rec {nullptr};
+        CallUFunction(tool, "GetSpellToolRecord", &rec);
+        return rec.ReturnValue ? AssetPath(rec.ReturnValue) : std::string {};
+    }
+
+    // The local player's aim pitch (deg, clamped to a signed byte) from the controller's look rotation —
+    // the body never pitches on foot, so a cast aimed up/down would replay flat without its own wire field.
+    int8_t LocalAimPitch(void *playerController) {
+        Rot3f rot {};
+        if (!CallUFunction(playerController, "GetControlRotation", &rot)) {
+            return 0;
+        }
+        const float pitch = std::clamp(NormalizeAxisDeg(rot.Pitch), -90.f, 90.f);
+        return static_cast<int8_t>(std::lround(pitch));
+    }
+
+    // Fire a real spell from the proxy via SpellHelper::CastSpell (the proven replay path). FX on, cast anim
+    // OFF (the proxy plays our own montage), bOnlyHitTarget on + null target to keep it cosmetic. Param
+    // block written by offset into a zeroed buffer (robust for the ~19-param fn).
+    void CastSpellOnProxy(void *instigator, UObjectBase *record, const float src[3], const float tgt[3]) {
+        if (!instigator || !record) {
+            return;
+        }
+        static UObjectBase *helper = nullptr;
+        if (!helper) {
+            if (auto *arr = HogwartsMP::Core::gGlobals.objectArray) {
+                const int total = arr->GetObjectArrayNum();
+                for (int i = 0; i < total; ++i) {
+                    auto *item = arr->IndexToObject(i);
+                    if (item && item->Object && narrow(item->Object->GetClass()->GetFName()) == "SpellHelper") {
+                        helper = item->Object;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!helper) {
+            return;
+        }
+        auto *fn = reinterpret_cast<UObjectBase *>(FindFunctionInChain(helper, "CastSpell"));
+        if (!fn) {
+            return;
+        }
+        uint8_t buf[512] = {0};
+        for (FField *f = reinterpret_cast<UStruct *>(fn)->ChildProperties; f; f = f->Next) {
+            auto *p         = static_cast<FProperty *>(f);
+            const auto name = narrow(p->GetFName());
+            const int off   = p->GetOffset_ForInternal();
+            if (name == "InInstigator") {
+                *reinterpret_cast<UObjectBase **>(buf + off) = reinterpret_cast<UObjectBase *>(instigator);
+            }
+            else if (name == "SpellToolRecord") {
+                *reinterpret_cast<UObjectBase **>(buf + off) = record;
+            }
+            else if (name == "SourceLocation") {
+                auto *fl = reinterpret_cast<float *>(buf + off);
+                fl[0] = src[0];
+                fl[1] = src[1];
+                fl[2] = src[2];
+            }
+            else if (name == "TargetLocation") {
+                auto *fl = reinterpret_cast<float *>(buf + off);
+                fl[0] = tgt[0];
+                fl[1] = tgt[1];
+                fl[2] = tgt[2];
+            }
+            else if (name == "SpellLevel") {
+                *reinterpret_cast<int32_t *>(buf + off) = 1;
+            }
+            else if (narrow(p->GetClass()->GetFName()) == "BoolProperty" &&
+                     (name == "bPlayMuzzleFX" || name == "bPlayImpactFX" || name == "bOnlyHitTarget")) {
+                auto *bp = static_cast<FBoolProperty *>(f);
+                buf[off + bp->ByteOffset] |= bp->ByteMask;
+            }
+        }
+        CallUFunction(helper, "CastSpell", buf);
+    }
 } // namespace
 
 namespace HogwartsMP::Core::Modules {
@@ -401,6 +603,13 @@ namespace HogwartsMP::Core::Modules {
         SetFlag(Shared::Modules::HumanSync::Mounted, mounted);
         data.mountId = mounted ? Shared::Modules::MountClassId(mountClass) : 0;
         SetFlag(Shared::Modules::HumanSync::InAir, !mounted && DetectInAir(pc->Pawn));
+
+        // Spell cast (on-foot only): the Cast flag + which spell (1-based allowlist id) + the aim pitch, so
+        // the proxy can replay the montage + fire the real spell aimed up/down. 0 when not casting.
+        const bool casting = !mounted && DetectCast(pc->Pawn);
+        SetFlag(Shared::Modules::HumanSync::Cast, casting);
+        data.spellId  = casting ? Shared::Modules::SpellRecordId(ActiveSpellRecordPath(pc->Pawn).c_str()) : 0;
+        data.aimPitch = casting ? LocalAimPitch(pc) : 0;
 
         // World velocity — only while mounted (remotes dead-reckon the broom from it; the on-foot snapshot
         // path ignores it). Zeroed on foot so the value stops changing and its delta Field goes quiet.
@@ -529,9 +738,13 @@ namespace HogwartsMP::Core::Modules {
             _timeAccum      = 0.0f;
             _havePacketTime = false; // next packet is treated as the first — clean resume, no huge-dt sample
         }
-        // Gait runs on foot only (the broom owns the mounted pose), and not before the async CCC mesh is built.
-        if (!_mounted && ProxyReadyToDrive()) {
-            UpdateGait();
+        // Anim driving, once the async CCC mesh is built. Gait is on-foot only (the broom owns the mounted
+        // pose); the cast montage/VFX no-ops itself while mounted.
+        if (ProxyReadyToDrive()) {
+            if (!_mounted) {
+                UpdateGait();
+            }
+            UpdateCast();
         }
     }
 
@@ -675,6 +888,48 @@ namespace HogwartsMP::Core::Modules {
         }
         Framework::Logging::GetLogger("Human")->info("CCC proxy build complete — locomotion enabled");
         return true;
+    }
+
+    // Play the cast montage on the proxy when the synced Cast flag rises, then fire the real spell (VFX)
+    // from the proxy aimed by its synced facing-yaw + aimPitch. Combat casts are full-body (FullBodyState
+    // ==7), so the montage goes into DefaultSlot over the running locomotion AnimBP. Native clip loaded by
+    // path, cached + GC-rooted. Skipped while mounted.
+    void ClientHuman::UpdateCast() {
+        const bool casting = IsCasting();
+        if (casting && !_castLast && _mesh && !_mounted) {
+            static UObjectBase *clip = [] {
+                auto *c = LoadAnimSequence(L"/Game/Animation/Human/Hu_Cmbt_Atk_Cast_Fwd_01_anm.Hu_Cmbt_Atk_Cast_Fwd_01_anm");
+                RootObject(c); // pin against GC — else the cached ptr dangles after a collection
+                return c;
+            }();
+            if (clip) {
+                PlaySlotMontageOnSkin(_mesh, clip, L"DefaultSlot");
+            }
+            // Fire the real spell VFX/projectile if a spell id was synced: resolve the allowlist id to its
+            // DA_*SpellRecord path, load it, and SpellHelper::CastSpell from the proxy.
+            if (const char *recPath = Shared::Modules::SpellRecordPath(data.spellId)) {
+                if (auto *actor = AliveActor(_actor, _actorIndex)) {
+                    const std::wstring wpath(recPath, recPath + std::strlen(recPath));
+                    static auto *objCls = FindUClass("Class /Script/CoreUObject.Object");
+                    if (auto *record = objCls ? LoadObjectByPath(objCls, wpath.c_str()) : nullptr) {
+                        const auto loc = GetActorPos(actor);
+                        const auto rot = GetActorRot(actor);
+                        // Rebuild the aim direction from synced facing-yaw + aimPitch (the body never
+                        // pitches on foot). forward = (cosP·cosY, cosP·sinY, sinP), matching UE.
+                        constexpr float kDegToRad = glm::pi<float>() / 180.f;
+                        const float pitch         = static_cast<float>(data.aimPitch) * kDegToRad;
+                        const float yaw           = rot.Yaw * kDegToRad;
+                        const float cp            = std::cos(pitch);
+                        const Vec3f fwd {cp * std::cos(yaw), cp * std::sin(yaw), std::sin(pitch)};
+                        constexpr float kCastHeight = 50.f; // ~chest height above the synced capsule centre
+                        const float src[3] = {loc.X, loc.Y, loc.Z + kCastHeight};
+                        const float tgt[3] = {loc.X + fwd.X * 1500.f, loc.Y + fwd.Y * 1500.f, loc.Z + kCastHeight + fwd.Z * 1500.f};
+                        CastSpellOnProxy(actor, record, src, tgt);
+                    }
+                }
+            }
+        }
+        _castLast = casting;
     }
 
     void ClientHuman::DeallocReplica(MafiaNet::Connection_RM3 *) {

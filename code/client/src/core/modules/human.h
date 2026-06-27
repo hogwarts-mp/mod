@@ -46,6 +46,9 @@ namespace HogwartsMP::Core::Modules {
         // Async-spawn readiness gate: true once CharacterMesh0's body mesh is built (driving before then
         // T-poses/crashes).
         bool ProxyReadyToDrive();
+        // Proxy spell cast: on the synced Cast flag's rising edge, play the cast montage + fire the real
+        // spell (VFX) from the proxy, aimed by synced facing-yaw + aimPitch.
+        void UpdateCast();
 
         bool _isLocal = false;
 
@@ -100,6 +103,9 @@ namespace HogwartsMP::Core::Modules {
         std::chrono::steady_clock::time_point _abpLastTick {};
         bool _havePacketTime = false;
         bool _abpTickInit    = false;
+
+        // Last-seen synced Cast flag, for the rising-edge cast trigger.
+        bool _castLast = false;
 
         // Local-player appearance send state: the CacheCCD pointer last harvested (rebuild detection) and
         // the content signature last sent (change detection).
