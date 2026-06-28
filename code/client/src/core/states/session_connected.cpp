@@ -4,6 +4,7 @@
 #include <utils/states/machine.h>
 
 #include "core/application.h"
+#include "core/hooks/population.h"
 
 namespace HogwartsMP::Core::States {
     SessionConnectedState::SessionConnectedState() {}
