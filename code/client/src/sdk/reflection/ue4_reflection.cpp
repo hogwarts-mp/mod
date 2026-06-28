@@ -98,11 +98,17 @@ namespace HogwartsMP::Core::UE4 {
     }
 
     UFunction *FindFunctionInChain(UObjectBase *obj, const char *name) {
+        if (!obj) {
+            return nullptr;
+        }
         // Cache positive results only: a lookup that failed once (e.g. before
         // the class was fully loaded) must stay retryable. Keyed per class so
         // no string concatenation happens on the hot path.
         static std::unordered_map<UStruct *, std::unordered_map<std::string, UFunction *>> cache;
         auto *cls      = obj->GetClass();
+        if (!cls) {
+            return nullptr;
+        }
         auto &perClass = cache[cls];
         if (const auto it = perClass.find(name); it != perClass.end()) {
             return it->second;
