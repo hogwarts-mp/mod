@@ -5,6 +5,7 @@
 #include <utils/states/machine.h>
 
 #include "../application.h"
+#include "../hooks/population.h"
 
 namespace HogwartsMP::Core::States {
     SessionOfflineDebugState::SessionOfflineDebugState() {}

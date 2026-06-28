@@ -68,6 +68,9 @@ namespace HogwartsMP::Game {
         Aob ulocalplayerCtor; // ULocalPlayer::ULocalPlayer (call site)
         Aob apcCtor;          // APlayerController::APlayerController (call site)
 
+        // --- Ambient population control ---
+        Aob populationManagerTick; // FUN_14316dd90 — no-op to disable all ambient NPC fleshing
+
         Offsets offsets;
     };
 
@@ -116,6 +119,10 @@ namespace HogwartsMP::Game {
         {"LocalPlayer/ULocalPlayer::ULocalPlayer", "E9 ? ? ? ? C3 66 66 66 2E 0F 1F 84 00 00 00 00 00 48 8D 64 24 D8 41 54 F7 1C 24", true},
         {"LocalPlayer/APlayerController::APlayerController", "E9 ? ? ? ? C3 85 C0 3C 88", true},
 
+        // Ambient population — PopulationManagerTick (FUN_14316dd90). No-op disables ambient NPCs.
+        // `80 B9 ? ? 00 00 00` = cmp byte[rcx+0x964],0 (the pause gate). RVA 0x316DD90 is the fallback.
+        {"Population/PopulationManagerTick", "48 89 5C 24 10 57 48 83 EC 40 80 B9 64 09 00 00 00 48 8B FA 48 8B D9", false},
+
         // Offsets
         {/*PersistentLevel*/ 0x30, /*OwningGameInstance*/ 0x330, /*LocalPlayers*/ 0x38},
     };
@@ -154,6 +161,9 @@ namespace HogwartsMP::Game {
         {"PlayerController/APlayerController::EndPlay", "48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC 30 48 8B B9 ? ? ? ? 8B F2", true},
         {"LocalPlayer/ULocalPlayer::ULocalPlayer", "E9 ? ? ? ? C3 66 66 66 2E 0F 1F 84 00 00 00 00 00 48 8D 64 24 D8 41 54 F7 1C 24", true},
         {"LocalPlayer/APlayerController::APlayerController", "E9 ? ? ? ? C3 85 C0 3C 88", true},
+
+        // Ambient population — not independently verified for this older build; marked optional.
+        {"Population/PopulationManagerTick", "48 89 5C 24 10 57 48 83 EC 40 80 B9 64 09 00 00 00 48 8B FA 48 8B D9", true},
 
         {/*PersistentLevel*/ 0x30, /*OwningGameInstance*/ 0x320, /*LocalPlayers*/ 0x38},
     };
