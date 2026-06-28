@@ -379,6 +379,61 @@ namespace {
         return inst && ReadByteProperty(inst, "FullBodyState") == kDodgeFullBodyState;
     }
 
+    // The actual GUObjectArray walk for the wand-tool holder. Kept separate so the SEH wrapper below can
+    // guard it: this frame owns the std::string temporaries (narrow), which __try can't coexist with.
+    UObjectBase *ScanForWandTool(void *pawn) {
+        auto *arr = HogwartsMP::Core::gGlobals.objectArray;
+        if (!arr) {
+            return nullptr;
+        }
+        const int total        = arr->GetObjectArrayNum();
+        UObjectBase *anyHolder = nullptr;
+        for (int i = 0; i < total; ++i) {
+            auto *item = arr->IndexToObject(i);
+            if (!item || !item->Object) {
+                continue;
+            }
+            auto *obj     = item->Object;
+            const auto cn = narrow(obj->GetClass()->GetFName());
+            if (cn == "Function" || cn == "Class") {
+                continue;
+            }
+            if (narrow(obj->GetFName()).rfind("Default__", 0) == 0) {
+                continue;
+            }
+            if (!FindFunctionInChain(obj, "GetActiveSpellTool")) {
+                continue;
+            }
+            if (!anyHolder) {
+                anyHolder = obj;
+            }
+            bool reaches = false;
+            for (auto *p = obj->GetOuter(); p; p = p->GetOuter()) {
+                if (p == pawn) {
+                    reaches = true;
+                    break;
+                }
+            }
+            if (reaches) {
+                return obj;
+            }
+        }
+        return anyHolder;
+    }
+
+    // SEH guard for the scan: during a level load (e.g. fast-travel) the GUObjectArray is mutated on the
+    // streaming thread, so an entry read here can be freed before we deref it -> hardware fault in
+    // GetClass()/FindFunctionInChain. Catch it and report "no wand this frame" instead of crashing. The
+    // __try frame holds no C++ objects needing unwind (the std::strings live in ScanForWandTool's frame).
+    UObjectBase *SafeScanForWandTool(void *pawn) {
+        __try {
+            return ScanForWandTool(pawn);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
+        }
+    }
+
     // The local player's WandTool (the GetActiveSpellTool holder), cached per pawn: prefer one whose outer
     // chain reaches the pawn, else the first non-CDO holder. Shared by the spell-record + Lumos reads.
     UObjectBase *WandToolFor(void *pawn) {
@@ -387,45 +442,7 @@ namespace {
         // Rescan while still null (the tool may not exist on the first lookup); only a hit is cached.
         if (pawn != cachedPawn || !wandTool) {
             cachedPawn = pawn;
-            wandTool   = nullptr;
-            if (auto *arr = HogwartsMP::Core::gGlobals.objectArray) {
-                const int total        = arr->GetObjectArrayNum();
-                UObjectBase *anyHolder = nullptr;
-                for (int i = 0; i < total; ++i) {
-                    auto *item = arr->IndexToObject(i);
-                    if (!item || !item->Object) {
-                        continue;
-                    }
-                    auto *obj     = item->Object;
-                    const auto cn = narrow(obj->GetClass()->GetFName());
-                    if (cn == "Function" || cn == "Class") {
-                        continue;
-                    }
-                    if (narrow(obj->GetFName()).rfind("Default__", 0) == 0) {
-                        continue;
-                    }
-                    if (!FindFunctionInChain(obj, "GetActiveSpellTool")) {
-                        continue;
-                    }
-                    if (!anyHolder) {
-                        anyHolder = obj;
-                    }
-                    bool reaches = false;
-                    for (auto *p = obj->GetOuter(); p; p = p->GetOuter()) {
-                        if (p == pawn) {
-                            reaches = true;
-                            break;
-                        }
-                    }
-                    if (reaches) {
-                        wandTool = obj;
-                        break;
-                    }
-                }
-                if (!wandTool) {
-                    wandTool = anyHolder;
-                }
-            }
+            wandTool   = SafeScanForWandTool(pawn);
         }
         return wandTool;
     }
