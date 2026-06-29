@@ -97,6 +97,27 @@ namespace HogwartsMP::Core::UE4 {
         return instances;
     }
 
+    UObjectBase *FindFirstInstanceOfSubclass(const char *baseShortName) {
+        if (!GObjectArray) {
+            return nullptr;
+        }
+        const int num = GObjectArray->GetObjectArrayNum();
+        for (int i = 0; i < num; ++i) {
+            auto *item = GObjectArray->IndexToObject(i);
+            if (!item || !item->Object) {
+                continue;
+            }
+            auto *obj = item->Object;
+            if (narrow(obj->GetFName()).rfind("Default__", 0) == 0) {
+                continue; // CDO: ProcessEvent on it derefs uninitialised fields and crashes
+            }
+            if (IsSubclassOf(obj->GetClass(), baseShortName)) {
+                return obj;
+            }
+        }
+        return nullptr;
+    }
+
     UFunction *FindFunctionInChain(UObjectBase *obj, const char *name) {
         if (!obj) {
             return nullptr;

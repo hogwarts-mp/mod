@@ -36,6 +36,11 @@ namespace HogwartsMP::Core::UE4 {
     // ProcessEvent on the CDO derefs uninitialized instance fields and crashes.
     std::vector<UObjectBase *> FindInstancesOfClass(const char *classFullName);
 
+    // First live, non-CDO instance whose class CHAIN derives from baseShortName (short name, e.g.
+    // "PhoenixGameInstance"), or nullptr — catches BP/native subclasses that FindInstancesOfClass
+    // (exact full-name) misses. CDOs are skipped (ProcessEvent on a CDO crashes). Game thread only.
+    UObjectBase *FindFirstInstanceOfSubclass(const char *baseShortName);
+
     // Equivalent of UE4SS's GetFunctionByNameInChain: walk the class hierarchy
     // looking for a UFunction by short name. Avoids hardcoding declaring
     // classes for every engine function. Positive results are cached per
