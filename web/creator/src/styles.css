@@ -1,0 +1,12 @@
+/* Hover affordances the design expressed via style-hover. */
+.hmp-arrow { transition: background .08s ease, border-color .08s ease; }
+.hmp-arrow:hover { background: rgba(201, 162, 90, .12); border-color: rgba(201, 162, 90, .5); }
+
+.hmp-medallion { transition: border-color .08s ease; }
+.hmp-medallion:hover { border-color: rgba(201, 162, 90, .55); }
+
+.hmp-choice { transition: border-color .08s ease, background .08s ease; }
+.hmp-choice:hover { border-color: rgba(201, 162, 90, .45); }
+
+.hmp-confirm { transition: filter .08s ease; }
+.hmp-confirm:hover { filter: brightness(1.06); }
