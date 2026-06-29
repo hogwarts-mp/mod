@@ -21,6 +21,7 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/states/session_disconnection.cpp
     src/core/states/session_offline_debug.cpp
     src/core/application.cpp
+    src/core/substrate_loader.cpp
     src/core/launch_config.cpp
     src/core/builtins/game.cpp
     src/core/dev_features.cpp

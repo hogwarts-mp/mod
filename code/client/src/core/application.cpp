@@ -19,6 +19,8 @@
 
 #include "modules/human.h"
 
+#include "substrate_loader.h"
+
 #include "builtins/game.h"
 #include <core_modules.h>
 #include <networking/replication/replication_manager.h>
@@ -220,6 +222,10 @@ namespace HogwartsMP::Core {
             }
             _input->Update();
         }
+
+        // Boot straight into the world. Unconditional: the menu is itself a world with a local
+        // player, so this must NOT sit inside the !world/!localPlayer guards below.
+        SubstrateLoader::TryAutoLoad();
 
         // If we don't have the local player yet, we try to grab it at each tick until we have it
         // This should be part of a hook "once map loaded" or "once local player created"
