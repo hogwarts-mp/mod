@@ -27,6 +27,9 @@ namespace HogwartsMP::LauncherUI::GameLaunch {
         constexpr const wchar_t *kPakBaseUrl       = L"https://github.com/hogwarts-mp/assets/releases/download/prerelease-v1.0.0/";
         constexpr const wchar_t *const kPakFiles[] = {L"RemoteAvatar_P.pak", L"RemoteAvatar_P.ucas", L"RemoteAvatar_P.utoc"};
 
+        // Substrate save the client auto-loads on boot; hosted alongside the paks.
+        constexpr const wchar_t *kSubstrateFile = L"HL-01-00.sav";
+
         std::filesystem::path ExeDir() {
             wchar_t buf[MAX_PATH] = {};
             GetModuleFileNameW(nullptr, buf, MAX_PATH);
@@ -199,6 +202,54 @@ namespace HogwartsMP::LauncherUI::GameLaunch {
                 // never let pak-fetch break the game launch
             }
         }
+
+        // Fetch the substrate into the modded SaveGames folder for the in-game auto-loader. HL keys
+        // SaveGames by the Steam account id, so resolve it via the wrapper. Non-fatal throughout.
+        void DownloadSubstrateSave() {
+            try {
+                uint32_t accountId = 0;
+                {
+                    Framework::External::Steam::Wrapper steam;
+                    if (!steam.Init()) {
+                        return;
+                    }
+                    accountId = steam.GetSteamID().GetAccountID();
+                    steam.Shutdown();
+                }
+                if (accountId == 0) {
+                    return;
+                }
+
+                wchar_t localAppData[MAX_PATH] = {};
+                if (!GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH)) {
+                    return;
+                }
+                const std::filesystem::path saveDir = std::filesystem::path(localAppData) / L"Hogwarts Legacy" /
+                                                      L"HogwartsMP" / L"Saved" / L"SaveGames" / std::to_wstring(accountId);
+                const std::filesystem::path dest = saveDir / kSubstrateFile;
+
+                std::error_code ec;
+                std::filesystem::create_directories(saveDir, ec);
+
+                // Always overwrite: this folder is mod-managed (not the player's real \Saved\
+                // progress), so the substrate stays a pristine baseline and a bumped release
+                // propagates. Atomic via .tmp; keep on failure so offline still launches.
+                std::filesystem::path tmp = dest;
+                tmp += L".tmp";
+                if (DownloadToFile(std::wstring(kPakBaseUrl) + kSubstrateFile, tmp)) {
+                    std::filesystem::rename(tmp, dest, ec); // same-dir rename: atomic on the volume
+                    if (ec) {
+                        std::filesystem::remove(tmp, ec); // rename failed — don't orphan the .tmp
+                    }
+                }
+                else {
+                    std::filesystem::remove(tmp, ec);
+                }
+            }
+            catch (...) {
+                // never let the save fetch break the game launch
+            }
+        }
     } // namespace
 
     bool PrepareConnect(const std::string &address) {
@@ -236,6 +287,9 @@ namespace HogwartsMP::LauncherUI::GameLaunch {
         // Fetch the remote-avatar pak (RemoteAvatar_P.*) into the game's Paks; the in-game
         // pak_mount hook co-mounts it at startup. Non-fatal — see DownloadAvatarPak.
         DownloadAvatarPak();
+
+        // Fetch the substrate save so the client boots into the baseline. Non-fatal.
+        DownloadSubstrateSave();
 
         Framework::Launcher::ProjectConfiguration config;
         config.destinationDllName        = L"HogwartsMPClient.dll";
