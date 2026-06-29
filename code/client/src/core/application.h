@@ -12,6 +12,7 @@
 
 #include "ui/chat.h"
 #include "ui/hud.h"
+#include "ui/creator.h"
 
 #include "game/game_input.h"
 
@@ -37,6 +38,7 @@ namespace HogwartsMP::Core {
         std::shared_ptr<HogwartsMP::Game::GameInput> _input;
         std::shared_ptr<UI::Chat> _chat;
         std::shared_ptr<UI::Hud> _hud;
+        std::shared_ptr<UI::Creator> _creator;
         std::shared_ptr<Framework::Utils::CommandProcessor> _commandProcessor;
         DevFeatures _devFeatures;
 
@@ -88,6 +90,10 @@ namespace HogwartsMP::Core {
 
         std::shared_ptr<UI::Hud> GetHud() const {
             return _hud;
+        }
+
+        std::shared_ptr<UI::Creator> GetCreator() const {
+            return _creator;
         }
 
         void LockControls(bool lock);
