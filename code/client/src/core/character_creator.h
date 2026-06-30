@@ -40,6 +40,35 @@ namespace HogwartsMP::Core::CharacterCreator {
     // pushing this straight to the web view is a later slice.
     void RequestEnumerate();
 
+    // Apply option `index` (1-based) of a creator category (hairStyle / hairColour /
+    // faceShape / skin / eyeColour / browShape / browColour) to the live player CCC via
+    // AvatarPresetsManager::LoadPreset. The category's preset-type + name list are
+    // resolved once (gender-aware) and cached.
+    void RequestApplyPreset(const std::string &category, int index);
+
+    // Set the player's voice pitch (AvaAudio::SetPlayerVoicePitch).
+    void RequestSetVoicePitch(int value);
+
+    // SPIKE: play a sample line in the player's voice at the current pitch (preview).
+    void RequestVoicePreview();
+
+    // Framing camera for the live preview: spawn/reposition a CameraActor in front of the
+    // player (front view, given distance/height/pitch/fov) and make it the view target, so
+    // the character is framed in the transparent viewport. Restore returns the player cam.
+    void RequestCameraFrame(float dist, float height, float pitch, float fov, float shift);
+    void RequestCameraRestore();
+
+    // Rotate the live player by a yaw delta (drag-to-inspect). Freeze pauses the idle
+    // animation so the character holds still (frozen=false resumes).
+    void RequestRotate(float deltaYaw);
+    void RequestFreeze(bool frozen);
+
+    // Appearance undo: snapshot the live CCC's CacheCCD when the creator opens; restore it on
+    // cancel (leave without Confirm); release the snapshot on Confirm (keep changes).
+    void RequestSnapshotAppearance();
+    void RequestRestoreAppearance();
+    void RequestReleaseSnapshot();
+
     // Game-thread pump — drains the queues above. Called from Playground_Tick.
     void ProcessPending();
 } // namespace HogwartsMP::Core::CharacterCreator
