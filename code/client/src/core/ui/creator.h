@@ -33,5 +33,7 @@ namespace HogwartsMP::Core::UI {
         bool _pageReady = false;
         bool _open      = false;
         bool _locked    = false;
+        // Set by cc:confirm; on close, an unconfirmed session rolls the appearance back.
+        bool _confirmed = false;
     };
 } // namespace HogwartsMP::Core::UI

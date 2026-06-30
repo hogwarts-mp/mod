@@ -397,26 +397,31 @@ namespace {
 } // namespace
 
 namespace HogwartsMP::Core::AppearanceDump {
-    bool BuildLocalCcd(Shared::Modules::CcdProfile &out) {
+    UObjectBase *FindLocalPlayerCcc() {
         using namespace HogwartsMP::Core::UE4;
         auto *lp = HogwartsMP::Core::gGlobals.localPlayer;
         if (!lp || !lp->PlayerController || !lp->PlayerController->Pawn) {
-            return false;
+            return nullptr;
         }
         auto *pawn = reinterpret_cast<UObjectBase *>(lp->PlayerController->Pawn);
         auto *arr  = HogwartsMP::Core::gGlobals.objectArray;
         if (!arr) {
-            return false;
+            return nullptr;
         }
-        const int total  = arr->GetObjectArrayNum();
-        UObjectBase *ccc = nullptr;
-        for (int i = 0; i < total && !ccc; ++i) {
+        const int total = arr->GetObjectArrayNum();
+        for (int i = 0; i < total; ++i) {
             auto *it = arr->IndexToObject(i);
             if (it && it->Object && narrow(it->Object->GetClass()->GetFName()) == "CustomizableCharacterComponent" && it->Object->GetOuter() == pawn) {
-                ccc = it->Object;
+                return it->Object;
             }
         }
-        auto *ccd = ccc ? ReadObjectProperty(ccc, "CacheCCD") : nullptr;
+        return nullptr;
+    }
+
+    bool BuildLocalCcd(Shared::Modules::CcdProfile &out) {
+        using namespace HogwartsMP::Core::UE4;
+        UObjectBase *ccc = FindLocalPlayerCcc();
+        auto *ccd        = ccc ? ReadObjectProperty(ccc, "CacheCCD") : nullptr;
         if (!ccd) {
             return false;
         }
