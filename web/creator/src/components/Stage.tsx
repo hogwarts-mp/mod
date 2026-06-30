@@ -11,10 +11,12 @@ interface Props {
 
 // Right-hand "character stage". In-game it's transparent so the live 3D avatar renders
 // behind it (we only overlay the vignette/specks/chips). In a plain browser (no host) we
-// draw the CSS placeholder bust so the design is previewable.
+// draw the CSS placeholder bust so the design is previewable. Rotation is A/D only.
 export function Stage({ title, summary, isFinalise, canConfirm, onConfirm }: Props) {
   return (
-    <div style={{ flex: 1, position: "relative", overflow: "hidden", borderLeft: `1px solid ${T.goldLineSoft}`, background: isHost ? "transparent" : "radial-gradient(120% 86% at 64% 4%, rgba(58,72,86,.30), rgba(0,0,0,0) 56%), linear-gradient(180deg,#0d0b08,#070504)" }}>
+    <div
+      style={{ flex: 1, position: "relative", overflow: "hidden", borderLeft: `1px solid ${T.goldLineSoft}`, background: isHost ? "transparent" : "radial-gradient(120% 86% at 64% 4%, rgba(58,72,86,.30), rgba(0,0,0,0) 56%), linear-gradient(180deg,#0d0b08,#070504)" }}
+    >
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(74% 70% at 56% 42%, rgba(0,0,0,0) 40%, rgba(0,0,0,.5) 100%)", pointerEvents: "none" }} />
 
       {/* drifting specks */}

@@ -10,25 +10,38 @@ export interface Section {
   max: number; // number of discrete options (slider goes 1..max)
 }
 
+// Framing camera per tab (front view onto the live avatar). Tunable live — pawn origin is
+// ~mid-torso, so +height looks up toward the head; dist/fov in cm/degrees.
+export interface Camera {
+  dist: number;
+  height: number;
+  pitch: number;
+  fov: number;
+  shift: number; // manual nudge (cm) added to the auto-derived lateral offset; usually 0
+}
+
 export interface Tab {
   id: string;
   title: string;
   numeral: string;
   finalise?: boolean;
   sections: Section[];
+  camera: Camera;
 }
 
 export const TABS: Tab[] = [
-  { id: "presets", title: "Presets", numeral: "I", sections: [{ key: "preset", label: "Preset", max: 30 }] },
+  { id: "presets", title: "Presets", numeral: "I", sections: [{ key: "preset", label: "Preset", max: 30 }], camera: { dist: 290, height: 80, pitch: -5, fov: 36, shift: 0 } },
   {
     id: "facewear",
     title: "Facewear",
     numeral: "II",
     sections: [
       { key: "faceShape", label: "Face Shape", max: 15 },
+      { key: "skin", label: "Skin Tone", max: 24 },
       { key: "eyeColour", label: "Eye Colour", max: 25 },
       { key: "glasses", label: "Glasses", max: 8 },
     ],
+    camera: { dist: 160, height: 77, pitch: -2, fov: 36, shift: 0 },
   },
   {
     id: "hair",
@@ -38,16 +51,18 @@ export const TABS: Tab[] = [
       { key: "hairStyle", label: "Hair Style", max: 52 },
       { key: "hairColour", label: "Hair Colour", max: 32 },
     ],
+    camera: { dist: 170, height: 80, pitch: -3, fov: 26, shift: 0 },
   },
   {
     id: "complexion",
     title: "Complexion",
     numeral: "IV",
     sections: [
-      { key: "skin", label: "Skin Tone", max: 24 },
-      { key: "freckles", label: "Freckles", max: 16 },
-      { key: "scars", label: "Scars", max: 13 },
+      { key: "marking1", label: "Complexion", max: 16 },
+      { key: "marking0", label: "Freckles and Moles", max: 13 },
+      { key: "marking2", label: "Scars and Markings", max: 14 },
     ],
+    camera: { dist: 170, height: 75, pitch: -2, fov: 26, shift: 0 },
   },
   {
     id: "eyebrows",
@@ -57,8 +72,9 @@ export const TABS: Tab[] = [
       { key: "browShape", label: "Brow Shape", max: 20 },
       { key: "browColour", label: "Brow Colour", max: 32 },
     ],
+    camera: { dist: 170, height: 75, pitch: -2, fov: 26, shift: 0 },
   },
-  { id: "finalise", title: "Finalise", numeral: "VI", finalise: true, sections: [] },
+  { id: "finalise", title: "Finalise", numeral: "VI", finalise: true, sections: [], camera: { dist: 405, height: 65, pitch: -4, fov: 36, shift: 0 } },
 ];
 
 // Voice/pitch on the Finalise tab. Pitch range is a placeholder (the design assumed 9) —

@@ -12,6 +12,7 @@ interface Props {
 // decorative ticks with the nearest one highlighted. Click a tick or the track to jump.
 export function Slider({ value, max, onChange }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
   const clamp = (n: number) => Math.min(max, Math.max(1, n));
 
   const dotCount = Math.min(max, 21);
@@ -26,6 +27,20 @@ export function Slider({ value, max, onChange }: Props) {
     onChange(clamp(Math.round(frac * (max - 1)) + 1));
   };
 
+  // Grab-and-drag: capture the pointer so move/up keep firing even past the track edge.
+  const onDown = (e: React.PointerEvent) => {
+    dragging.current = true;
+    trackRef.current?.setPointerCapture(e.pointerId);
+    jumpFromX(e.clientX);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (dragging.current) jumpFromX(e.clientX);
+  };
+  const onUp = (e: React.PointerEvent) => {
+    dragging.current = false;
+    trackRef.current?.releasePointerCapture(e.pointerId);
+  };
+
   const arrow: React.CSSProperties = {
     flex: "none", width: 30, height: 30, borderRadius: "50%", border: `1px solid ${T.goldLine}`,
     display: "flex", alignItems: "center", justifyContent: "center", color: T.goldSoft,
@@ -37,7 +52,9 @@ export function Slider({ value, max, onChange }: Props) {
       <div className="hmp-arrow" style={arrow} onClick={() => onChange(clamp(value - 1))}>&#8249;</div>
       <div
         ref={trackRef}
-        onPointerDown={(e) => jumpFromX(e.clientX)}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
         style={{ flex: 1, position: "relative", height: 26, cursor: "pointer", touchAction: "none" }}
       >
         <div style={{ position: "absolute", left: 2, right: 2, top: "50%", transform: "translateY(-50%)", height: 1, background: "rgba(201,162,90,.16)" }} />

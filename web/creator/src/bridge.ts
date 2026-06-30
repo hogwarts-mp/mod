@@ -50,6 +50,18 @@ export const bridge = {
   reload(): void {
     emit("cc:reload", null);
   },
+  /** Frame the live avatar for the current section (front view). */
+  setCamera(cam: { dist: number; height: number; pitch: number; fov: number; shift: number }): void {
+    emit("cc:camera", cam);
+  },
+  /** Rotate the avatar by a yaw delta (drag-to-inspect). */
+  rotate(deltaYaw: number): void {
+    emit("cc:rotate", { yaw: deltaYaw });
+  },
+  /** Freeze/resume the idle animation so the character holds still. */
+  setFreeze(on: boolean): void {
+    emit("cc:freeze", { on });
+  },
 
   // ── Finalise ──────────────────────────────────────────────────────────────
   setVoice(tone: number): void {
@@ -57,6 +69,10 @@ export const bridge = {
   },
   setPitch(value: number): void {
     emit("cc:pitch", { value });
+  },
+  /** Play a sample line in the player's voice at the current pitch. */
+  previewVoice(): void {
+    emit("cc:voicepreview", null);
   },
   setName(first: string, last: string): void {
     emit("cc:name", { first, last });

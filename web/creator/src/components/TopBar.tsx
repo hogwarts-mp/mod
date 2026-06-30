@@ -18,7 +18,7 @@ export function TopBar({ tabs, activeId, title, onSelect, onPrev, onNext }: Prop
   };
 
   return (
-    <div style={{ flex: "none", padding: "20px 30px 14px", borderBottom: `1px solid ${T.goldLineSoft}` }}>
+    <div style={{ flex: "none", padding: "20px 30px 14px", borderBottom: `1px solid ${T.goldLineSoft}`, background: "rgba(10,8,5,.92)" }}>
       {/* brand */}
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 12 }}>
         <span style={{ width: 10, height: 10, background: T.gold, transform: "rotate(45deg)", display: "inline-block" }} />
