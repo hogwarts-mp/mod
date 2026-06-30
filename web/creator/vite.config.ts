@@ -1,11 +1,13 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { viteSingleFile } from "vite-plugin-singlefile";
 
 // The in-game creator view loads this either from the dev server (npm run dev /
-// pixi run creator-ui-dev -> http://localhost:5173) or, shipped, as a built bundle
-// hosted on Pages. Relative asset URLs (base: "./") so it works under any path.
+// pixi run creator-ui-dev -> http://localhost:5173) or, shipped, as ONE self-contained
+// HTML file hosted on Pages next to hud.html/chat.html (viteSingleFile inlines the JS+CSS,
+// so publishing is a single-file copy -> docs/ui/creator.html, same as the other UIs).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), viteSingleFile()],
   base: "./",
   build: {
     outDir: "dist",
