@@ -439,25 +439,48 @@ namespace {
     UObjectBase *WandToolFor(void *pawn) {
         static void *cachedPawn      = nullptr;
         static UObjectBase *wandTool = nullptr;
-        // Rescan while still null (the tool may not exist on the first lookup); only a hit is cached.
+        static int32_t wandId        = -1;
+        // A fresh login pawn can reuse a freed pawn's address, so pawn==cachedPawn would hand
+        // back a dangling wand. Re-check the cached InternalIndex still resolves to it (stable
+        // for an object's lifetime) — never deref the possibly-freed pointer.
+        if (wandTool) {
+            auto *arr  = HogwartsMP::Core::gGlobals.objectArray;
+            auto *item = (arr && wandId >= 0) ? arr->IndexToObject(wandId) : nullptr;
+            if (!item || item->Object != wandTool) {
+                wandTool = nullptr;
+                wandId   = -1;
+            }
+        }
+        // Rescan while null; capture the id here, where the wand is freshly live.
         if (pawn != cachedPawn || !wandTool) {
             cachedPawn = pawn;
             wandTool   = SafeScanForWandTool(pawn);
+            wandId     = wandTool ? static_cast<int32_t>(wandTool->GetUniqueID()) : -1;
         }
         return wandTool;
     }
 
-    // The local player's active spell tool (WandTool.GetActiveSpellTool()), or null.
+    // SEH-isolated: even a live wand can fault here on early login frames (ability system not
+    // ready). Only a POD struct in this frame, so no unwind is needed.
+    UObjectBase *SafeGetActiveSpellTool(UObjectBase *wand) {
+        __try {
+            struct {
+                UObjectBase *ReturnValue;
+            } tool {nullptr};
+            CallUFunction(wand, "GetActiveSpellTool", &tool);
+            return tool.ReturnValue;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
+        }
+    }
+
     UObjectBase *ActiveSpellTool(void *pawn) {
         auto *wand = WandToolFor(pawn);
         if (!wand) {
             return nullptr;
         }
-        struct {
-            UObjectBase *ReturnValue;
-        } tool {nullptr};
-        CallUFunction(wand, "GetActiveSpellTool", &tool);
-        return tool.ReturnValue;
+        return SafeGetActiveSpellTool(wand);
     }
 
     // The active spell's SpellToolRecord asset path for the local player (empty if unavailable) — published
