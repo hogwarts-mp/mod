@@ -73,6 +73,7 @@ namespace HogwartsMP::Core {
         _input            = std::make_shared<HogwartsMP::Game::GameInput>();
         _chat             = std::make_shared<UI::Chat>();
         _hud              = std::make_shared<UI::Hud>();
+        _creator          = std::make_shared<UI::Creator>();
 
         // Outgoing chat goes through the framework's built-in chat (server resolves the sender).
         _chat->SetOnMessageSentCallback([this](const std::string &msg) {
@@ -213,12 +214,18 @@ namespace HogwartsMP::Core {
         if (_hud) {
             _hud->Update();
         }
+        if (_creator) {
+            _creator->Update();
+        }
 
         // Edge-detect hotkeys before _input->Update() clears the edges (CEF's
         // mid-tick pump would otherwise clear them first).
         if (_input) {
             if (_hud && _input->IsKeyPressed(FW_KEY_F8)) {
                 _hud->ToggleDevMenu();
+            }
+            if (_creator && _input->IsKeyPressed(FW_KEY_F5)) {
+                _creator->Toggle();
             }
             _input->Update();
         }

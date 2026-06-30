@@ -4,6 +4,7 @@
 #include "application.h"
 #include "aob_scan.h"
 #include "broom_experiment.h"
+#include "character_creator.h"
 #include "student_proxy.h"
 #include "sdk/natives/ue4_natives.h"
 #include "sdk/reflection/ue4_reflection.h"
@@ -89,6 +90,7 @@ void Playground_Tick() {
     HogwartsMP::Core::StudentProxy::ProcessPending();
     HogwartsMP::Core::AppearanceDump::ProcessPending();
     HogwartsMP::Core::BroomExperiment::ProcessPending();
+    HogwartsMP::Core::CharacterCreator::ProcessPending();
 
     std::optional<std::string> spawn;
     bool destroy = false;

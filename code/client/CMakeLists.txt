@@ -34,9 +34,11 @@ set(HOGWARTSMP_CLIENT_FILES
     src/core/ccd_wire.cpp
     src/core/proxy_locomotion.cpp
     src/core/student_proxy.cpp
+    src/core/character_creator.cpp
 
     src/core/ui/chat.cpp
     src/core/ui/hud.cpp
+    src/core/ui/creator.cpp
     src/core/ui/teleport_manager.cpp
     src/core/ui/season_manager.cpp
 

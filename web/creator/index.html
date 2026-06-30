@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<!--
+  Character creator — local dev scaffold.
+
+  Exercises the cc:* C++ bridge (CharacterCreator driver) live against the local
+  player's CCC. This is a developer harness, not the shipping UI: raw inputs for
+  every knob so we can validate the bridge end-to-end before building the real
+  stock-thumbnail + colour-chip screen.
+
+  Serve locally with `pixi run creator-ui-dev` (http://localhost:5173) and point
+  the game at it with HOGWARTSMP_CREATOR_URL=http://localhost:5173. The page is
+  transparent until window.hmpCreator.open() (F5 in-game).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>HogwartsMP Character Creator (dev)</title>
+<style>
+  :root { --bg: rgba(18,16,28,0.94); --panel:#241f36; --ink:#ece8ff; --muted:#a79fce; --accent:#c9a227; --line:#3a3358; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:transparent; color:var(--ink);
+    font:14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  /* Hidden until open() — keep the overlay click-through-free only while shown. */
+  #root { display:none; position:fixed; inset:0; }
+  body.open #root { display:block; }
+  #scrim { position:absolute; inset:0; background:rgba(0,0,0,0.35); }
+  #panel { position:absolute; top:0; right:0; height:100%; width:380px; overflow-y:auto;
+    background:var(--bg); border-left:2px solid var(--accent); padding:18px 18px 60px; }
+  h1 { font-size:18px; margin:0 0 2px; color:var(--accent); letter-spacing:.5px; }
+  .sub { color:var(--muted); font-size:12px; margin:0 0 16px; }
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 14px; padding:10px 12px; background:var(--panel); }
+  legend { color:var(--accent); font-size:12px; text-transform:uppercase; letter-spacing:.6px; padding:0 6px; }
+  label { display:block; color:var(--muted); font-size:11px; margin:8px 0 2px; }
+  input[type=text], input[type=number] { width:100%; padding:6px 8px; background:#1a1626;
+    border:1px solid var(--line); border-radius:6px; color:var(--ink); }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  button { margin-top:10px; padding:7px 10px; background:var(--accent); color:#1a1626;
+    border:0; border-radius:6px; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  .actions { position:sticky; bottom:0; background:var(--bg); padding-top:10px; display:flex; gap:8px; }
+  .actions button { flex:1; margin-top:0; }
+  #warn { background:#502; color:#fdd; padding:6px 10px; border-radius:6px; font-size:12px; margin-bottom:12px; display:none; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="scrim"></div>
+  <div id="panel">
+    <h1>Character Creator</h1>
+    <p class="sub">dev harness · edits the local player's CCC live</p>
+    <div id="warn">Not running inside CEF (callEvent missing) — buttons are no-ops. Open in-game to test.</div>
+
+    <fieldset>
+      <legend>Outfit</legend>
+      <label>Outfit name (from Outfits map)</label>
+      <input type="text" id="outfit" placeholder="e.g. StuUni03" />
+      <button data-act="outfit">Set Outfit</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Add-on mesh (hair / brows / face / markings)</legend>
+      <div class="row">
+        <div><label>Piece type</label><input type="text" id="addonType" placeholder="Hair" /></div>
+        <div><label>Piece name</label><input type="text" id="addonName" placeholder="HairMale001" /></div>
+      </div>
+      <button data-act="addon">Set Add-on Mesh</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Colour (vector param)</legend>
+      <div class="row">
+        <div><label>Mesh name</label><input type="text" id="vecMesh" placeholder="Head" /></div>
+        <div><label>Parameter</label><input type="text" id="vecParam" placeholder="Color_Iris" /></div>
+      </div>
+      <label>Colour</label>
+      <input type="color" id="vecColor" value="#7a4a2b" />
+      <button data-act="vector">Set Colour</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Scalar param</legend>
+      <div class="row">
+        <div><label>Mesh name</label><input type="text" id="scalMesh" placeholder="Head" /></div>
+        <div><label>Parameter</label><input type="text" id="scalParam" placeholder="Complexion" /></div>
+      </div>
+      <label>Value</label>
+      <input type="number" id="scalValue" step="0.05" value="0.5" />
+      <button data-act="scalar">Set Scalar</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Body</legend>
+      <div class="row">
+        <div><label>Bone slider</label><input type="text" id="boneName" placeholder="Nose" /></div>
+        <div><label>Value</label><input type="number" id="boneValue" step="0.05" value="1.0" /></div>
+      </div>
+      <button data-act="bone">Set Bone Slider</button>
+      <label>Overall scale</label>
+      <input type="number" id="scaleValue" step="0.01" value="1.0" />
+      <button data-act="scale">Set Scale</button>
+    </fieldset>
+
+    <div class="actions">
+      <button data-act="enumerate" class="ghost">Enumerate (log)</button>
+      <button data-act="reload">Rebuild</button>
+      <button data-act="close" class="ghost">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Bridge: global callEvent(name, payloadStringOrNull) is injected by the
+  // framework's CEF renderer. In a plain browser it's absent — degrade to logging.
+  function emit(name, payload) {
+    if (typeof window.callEvent === "function") {
+      window.callEvent(name, payload == null ? null : String(payload));
+    } else {
+      console.log("[creator] emit", name, payload);
+    }
+  }
+  const $ = (id) => document.getElementById(id);
+  const hexToRgb = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255, a: 1.0 };
+  };
+
+  const actions = {
+    outfit: () => emit("cc:outfit", $("outfit").value.trim()),
+    addon:  () => emit("cc:addon", JSON.stringify({ type: $("addonType").value.trim(), name: $("addonName").value.trim() })),
+    vector: () => { const c = hexToRgb($("vecColor").value);
+      emit("cc:vector", JSON.stringify({ mesh: $("vecMesh").value.trim(), param: $("vecParam").value.trim(), ...c })); },
+    scalar: () => emit("cc:scalar", JSON.stringify({ mesh: $("scalMesh").value.trim(), param: $("scalParam").value.trim(), value: parseFloat($("scalValue").value) })),
+    bone:   () => emit("cc:bone", JSON.stringify({ bone: $("boneName").value.trim(), value: parseFloat($("boneValue").value) })),
+    scale:  () => emit("cc:scale", $("scaleValue").value),
+    enumerate: () => emit("cc:enumerate", null),
+    reload: () => emit("cc:reload", null),
+    close:  () => emit("creator:close", null),
+  };
+
+  document.querySelectorAll("[data-act]").forEach((b) =>
+    b.addEventListener("click", () => actions[b.getAttribute("data-act")]()));
+
+  // C++-driven show/hide. Toggling the body class flips #root display so the
+  // overlay is fully transparent (no input capture) until opened.
+  window.hmpCreator = {
+    open()  { document.body.classList.add("open"); },
+    close() { document.body.classList.remove("open"); },
+  };
+
+  if (typeof window.callEvent !== "function") { $("warn").style.display = "block"; }
+  // Tell C++ the page + window.hmpCreator are installed.
+  emit("creator:ready", null);
+})();
+</script>
+</body>
+</html>
