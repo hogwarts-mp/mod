@@ -8,6 +8,7 @@
 #include "sdk/reflection/ue4_reflection.h"
 
 #include "UObject/Class.h"
+#include "UObject/EnumProperty.h"
 #include "UObject/UObjectArray.h"
 #include "UObject/UnrealType.h"
 
@@ -284,8 +285,123 @@ namespace {
         return i < 0 ? 0 : (i >= count ? count - 1 : i);
     }
 
+    // Glasses are GearAppearanceItemDefinitions in the FACE gear slot, not AvatarPresets. We show
+    // them by FORCING the appearance on that slot (GearManager::SetForcedGearAppearances) — a forced
+    // appearance renders regardless of what's equipped and leaves the rest of the character alone, so
+    // no look-rebuild is needed. FACE numbers -> ids "GA_Face_<nnn>"; Some IDs like GA_Face_002 is absent
+    // in the build. The FACE slot mixes glasses and masks.
+    const int kGlassesNums[] = {4, 5, 6, 7, 8};
+
+    // GearManager singleton (its own Get(), like AvatarPresetsManager).
+    UObjectBase *g_gearMgr = nullptr;
+    UObjectBase *GearManagerInstance() {
+        if (g_gearMgr) {
+            return g_gearMgr;
+        }
+        if (auto *cdo = FindCdoByClass("GearManager")) {
+            struct {
+                UObjectBase *ReturnValue;
+            } r{nullptr};
+            CallUFunction(cdo, "Get", &r);
+            g_gearMgr = r.ReturnValue;
+        }
+        return g_gearMgr;
+    }
+
+    // Re-evaluate the local actor's gear so a just-changed forced appearance renders.
+    void RefreshGear(UObjectBase *gm) {
+        auto *lp = gGlobals.localPlayer;
+        if (!lp || !lp->PlayerController || !lp->PlayerController->Pawn) {
+            return;
+        }
+        auto *pawn = reinterpret_cast<UObjectBase *>(lp->PlayerController->Pawn);
+        bool yes = true;
+        TArrHdr emptyStr{nullptr, 0, 0};
+        CallNamed(gm, "UpdateGearOutfitItems",
+                  {{"Actor", &pawn, sizeof(void *)}, {"UpdateIfNothingEquipped", &yes, 1}, {"bIncludeSlotDefaultGear", &yes, 1}, {"GearActorID", &emptyStr, sizeof(TArrHdr)}});
+    }
+
+    // Apply glasses option `index` (1-based): 1 = none, 2.. pick kGlassesNums[index-2]. Overlays the
+    // chosen appearance onto the FACE gear slot via GearManager::SetForcedGearAppearances — a forced
+    // appearance renders regardless of equipped gear and leaves the rest of the character untouched.
+    void ApplyGlasses(int index) {
+        auto *gm = GearManagerInstance();
+        if (!gm) {
+            Log()->warn("glasses: no GearManager");
+            return;
+        }
+        // Resolve the forced-appearance map property + the FACE slot value once (both paths use it).
+        auto *fn = FindFunctionInChain(gm, "SetForcedGearAppearances");
+        if (!fn) {
+            Log()->warn("glasses: no SetForcedGearAppearances");
+            return;
+        }
+        FMapProperty *mapProp = nullptr;
+        for (FField *p = fn->ChildProperties; p; p = p->Next) {
+            if (narrow(p->GetFName()) == "GearAppearanceNames") {
+                mapProp = static_cast<FMapProperty *>(static_cast<FProperty *>(p));
+            }
+        }
+        if (!mapProp || !mapProp->KeyProp) {
+            return;
+        }
+        // FACE slot's EGearSlotIDEnum value, read from the map key's enum (its name is "...::FACE").
+        int64_t faceVal = -1;
+        if (auto *en = static_cast<FEnumProperty *>(mapProp->KeyProp)->GetEnum()) {
+            for (int32_t i = 0; i < en->Names.Num(); ++i) {
+                if (narrow(en->Names[i].Key).find("FACE") != std::string::npos) {
+                    faceVal = en->Names[i].Value;
+                    break;
+                }
+            }
+        }
+        if (faceVal < 0) {
+            Log()->warn("glasses: FACE slot value not found");
+            return;
+        }
+        uint8_t faceByte = static_cast<uint8_t>(faceVal);
+
+        // none -> clear ONLY the FACE forced slot (RemoveAll would wipe any other forced gear that
+        // may be added later). GearSlotIDs is a TArray<EGearSlotIDEnum> with the single FACE entry.
+        if (index < 2) {
+            TArrHdr slots{&faceByte, 1, 1};
+            CallNamed(gm, "RemoveForcedGearAppearances", {{"GearSlotIDs", &slots, sizeof(TArrHdr)}});
+            RefreshGear(gm);
+            Log()->info("glasses: cleared (none)");
+            return;
+        }
+
+        const int count = static_cast<int>(sizeof(kGlassesNums) / sizeof(kGlassesNums[0]));
+        int k           = index - 2;
+        k               = k < 0 ? 0 : (k >= count ? count - 1 : k);
+        std::string n   = std::to_string(kGlassesNums[k]);
+        while (n.size() < 3) {
+            n = "0" + n;
+        }
+        const std::string id = "GA_Face_" + n;
+
+        // Build {FACE -> glasses} into the params buffer (FScriptMapHelper handles the TMap layout)
+        // and force it; free the map we built afterwards.
+        std::vector<uint8_t> buf(fn->ParmsSize, 0);
+        uint8_t *mapPtr = buf.data() + mapProp->GetOffset_ForInternal();
+        FScriptMapHelper helper(mapProp, mapPtr);
+        uint8_t keyBuf[8] = {0};
+        keyBuf[0]         = faceByte;
+        FName val         = MakeFName(wide(id).c_str());
+        helper.AddPair(keyBuf, &val);
+        reinterpret_cast<UObject *>(gm)->ProcessEvent(fn, buf.data());
+        mapProp->DestroyValue(mapPtr);
+        RefreshGear(gm);
+        Log()->info("glasses: forced FACE slot = {}", id);
+    }
+
     // Apply preset `index` (1-based) of `category` to the live CCC via LoadPreset.
     void ApplyPreset(UObjectBase *ccc, const std::string &category, int index) {
+        // Glasses are gear, not an AvatarPreset — a separate (GearManager) path.
+        if (category == "glasses") {
+            ApplyGlasses(index);
+            return;
+        }
         auto *mgr = PresetsManager();
         if (!mgr) {
             return;
