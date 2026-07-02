@@ -39,7 +39,7 @@ export const TABS: Tab[] = [
       { key: "faceShape", label: "Face Shape", max: 15 },
       { key: "skin", label: "Skin Tone", max: 24 },
       { key: "eyeColour", label: "Eye Colour", max: 25 },
-      { key: "glasses", label: "Glasses", max: 8 },
+      { key: "glasses", label: "Glasses", max: 6 },
     ],
     camera: { dist: 160, height: 77, pitch: -2, fov: 36, shift: 0 },
   },
